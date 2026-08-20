@@ -36,6 +36,7 @@ gates:
     tools:
       ts: ["tsc --noEmit"]
     caller_config:
+      - "tsconfig.json" # root project - selects the CI tsc lane's root branch
       - "packages/server/tsconfig.json"
       - "packages/client/tsconfig.json"
       - "packages/shared/tsconfig.json"

@@ -1,0 +1,29 @@
+{
+  // Root project for CI gate 2 (M2 validation). The pinned reusable workflow's
+  // tsc lane has two branches: with a root tsconfig.json it runs `npm ci` at
+  // the ROOT (real lockfile, pinned TypeScript from devDependencies) and one
+  // `tsc --noEmit`; without one it discovers every tsconfig*.json and runs
+  // `npm install` + a REGISTRY-LATEST tsc inside each package dir - where
+  // vitest/@types/node are not declared (they are hoisted), so that branch
+  // red-fails on TS2307/TS2688. Reproduced in a clean clone at WU-M2
+  // validation. This file selects the root branch: one strict sweep of every
+  // .ts file in the tree (packages src+test, e2e, scripts, configs).
+  //
+  // Workspace packages keep their own tsconfig.json for `npm run typecheck`;
+  // this root project does not replace them, it is the CI-facing superset.
+  "extends": "./tsconfig.base.json",
+  "exclude": [
+    "node_modules",
+    "legacy",
+    "coverage",
+    "test-results",
+    "**/generated/**",
+    "**/node_modules/**",
+    // Imports the GENERATED Prisma client, which exists only after
+    // `prisma generate` - i.e. never on a clean checkout, so never in CI's
+    // gate 2 (measured: TS2307 in a clean-clone simulation). The file is a
+    // tsx-run dev tool and was not typechecked by any lane before this root
+    // project existed; excluding it is the status quo, made visible here.
+    "scripts/db/check.ts"
+  ]
+}
