@@ -23,7 +23,7 @@ quiet fix).
 | J2 — forgot password → reset → sign-in | `e2e/journeys/j02-forgot-password.spec.ts` | pending | M4 (API-level; UI at M5) | WU-M4-5 | WU-M5-4 |
 | J3 — create forum → visibility → collaborator role | `e2e/journeys/j03-forum-roles.spec.ts` | pending | M4 (API-level; UI at M5) | WU-M4-6 | WU-M5-5 |
 | J4 — admin creates topic per method → publish | `e2e/journeys/j04-topics.spec.ts` | pending | M4 (API-level; UI at M5) | WU-M4-8 | WU-M5-6 |
-| J5 — vote (yes/no/abstain) + tally update | `e2e/journeys/j05-vote.spec.ts` | pending | M4 (API-level; UI at M5) | WU-M4-9 | WU-M5-7 |
+| J5 — vote (yes/no/abstain) + tally update | `e2e/journeys/j05-vote-method.spec.ts` | pending | M4 (API-level; UI at M5) | WU-M4-9 | WU-M5-7 |
 | J6 — vote with poll and cause | `e2e/journeys/j06-poll-cause.spec.ts` | pending | M4 (API-level; UI at M5) | WU-M4-9 | WU-M5-7 |
 | J7 — vote with slider and hierarchy | `e2e/journeys/j07-slider-hierarchy.spec.ts` | pending | M4 (API-level; UI at M5) | WU-M4-9 | WU-M5-7 |
 | J8 — comment → reply → votes → flag → edit → delete | `e2e/journeys/j08-comments.spec.ts` | pending | M4 (API-level; UI at M5) | WU-M4-10 | WU-M5-8 |

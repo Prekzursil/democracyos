@@ -62,17 +62,22 @@ jobs:
         run: |
           set -euo pipefail
           shopt -s nullglob globstar
-          files=(e2e/**/*.spec.ts)
+          # Scans every .ts under e2e/, not just *.spec.ts: helpers and fixtures
+          # can smuggle a raw selector into a journey just as easily (M1 harness
+          # review, finding N2).
+          files=(e2e/**/*.ts)
           if [ ${#files[@]} -eq 0 ]; then
-            echo "No spec files yet - selector gate vacuously green."
+            echo "No e2e sources yet - selector gate vacuously green."
             exit 0
           fi
-          banned='\.locator\(|page\.\$|querySelector|xpath=|getByTestId|data-testid|toHaveScreenshot|toMatchSnapshot|["'\'']//'
+          # frameLocator( is listed explicitly: the capital L defeats \.locator\(
+          # and it takes a raw CSS selector, so it was a live bypass (finding N3).
+          banned='\.locator\(|frameLocator\(|page\.\$|querySelector|xpath=|getByTestId|data-testid|data-test-id|toHaveScreenshot|toMatchSnapshot|["'\'']//'
           if grep -nE "$banned" "${files[@]}"; then
             echo "::error::Banned selector pattern found. Spec style (N9): getByRole/getByLabel/getByText only - no CSS/DOM selectors, no XPath, no data-testid as primary, no screenshot diffing."
             exit 1
           fi
-          echo "Selector policy: clean (${#files[@]} spec file(s) checked)."
+          echo "Selector policy: clean (${#files[@]} e2e source file(s) checked)."
 
       - name: Pending/active ratio (from e2e/SPEC-LEDGER.md)
         run: |
@@ -84,6 +89,19 @@ jobs:
           pending=$(grep -cE '\|[[:space:]]*pending[[:space:]]*\|' e2e/SPEC-LEDGER.md || true)
           active=$(grep -cE '\|[[:space:]]*active[[:space:]]*\|' e2e/SPEC-LEDGER.md || true)
           echo "Spec ledger: active=${active} pending=${pending}"
+          # Drift guard (M1 harness review, finding N5): the ledger is prose and
+          # the specs are code, so a spec flipped from test.fixme to test without
+          # flipping its row would otherwise be caught only by human review.
+          shopt -s nullglob globstar
+          journeys=(e2e/journeys/*.spec.ts)
+          if [ ${#journeys[@]} -gt 0 ]; then
+            fixmes=$(grep -cE 'test\.fixme\(' "${journeys[@]}" | awk -F: '{s+=$NF} END {print s+0}')
+            echo "Journey specs quarantined via test.fixme: ${fixmes} (across ${#journeys[@]} file(s))"
+            if [ "${fixmes}" -eq 0 ] && [ "${pending}" -gt 0 ]; then
+              echo "::error::Ledger claims ${pending} pending journeys but no test.fixme remains in e2e/journeys - the ledger has drifted from the specs."
+              exit 1
+            fi
+          fi
           echo "Reminder (R13): a ledger row is a milestone-exit number, not a vibe; M5 may not delete legacy/ while anything is pending."
 
       - name: Run e2e suite
