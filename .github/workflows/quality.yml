@@ -1,0 +1,50 @@
+# quality - the qzp lean 6-gate caller (plan WU-M2-1).
+#
+# Calls Prekzursil/quality-zero-platform's reusable-quality.yml, pinned to a
+# full 40-char SHA (plan N8, Q10). The pin below is the HEAD of that repo's
+# `main` at enrollment time (2026-08-20), which is ALSO the newest commit that
+# touches .github/workflows/reusable-quality.yml on main (PR #289, merged
+# 2026-08-12). Verified two independent ways at pin time:
+#   1. `git ls-remote origin main` on the qzp-lean clone -> 38b86a1f...
+#   2. GitHub commits API, main, path-filtered to reusable-quality.yml -> the
+#      newest commit is 38b86a1f... (the local qzp-lean checkout was STALE at a
+#      June SHA; the pin was taken from the live remote, not the clone).
+# Bumps are manual or via qzp's bump-workflow-shas wave (plan Q10).
+#
+# What the caller adds because the reusable workflow lacks it:
+#   * concurrency (workflow-level) - one run per ref, superseded runs cancelled.
+#   * timeout-minutes: **NOT POSSIBLE at the caller.** GitHub Actions does not
+#     allow `timeout-minutes` on a job whose `uses:` targets a reusable
+#     workflow (docs: "Supported keywords for jobs that call a reusable
+#     workflow" - name/uses/with/secrets/strategy/needs/if/concurrency/
+#     permissions only; anything else is a workflow-file parse error). The plan
+#     asked the caller to add `timeout-minutes: 20`; the only place that budget
+#     can live is the `quality` job INSIDE reusable-quality.yml, i.e. a
+#     qzp-side change (escalated with WU-M2-3). Until then the GitHub default
+#     job timeout (360 min) applies.
+#
+# Shadow semantics: enrollment (WU-M2-3, orchestrator-side) starts this repo at
+# `mode.phase: shadow` in the qzp control plane; the workflow itself always
+# reports honest green/red. M2's DoD needs three green runs on main before the
+# flip to `absolute`.
+name: quality
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    uses: Prekzursil/quality-zero-platform/.github/workflows/reusable-quality.yml@38b86a1f53d6784b4f4c16d78a887b1bbbfa5f05 # main @ 2026-08-20 (PR #289)
+    with:
+      node-version: "22"
