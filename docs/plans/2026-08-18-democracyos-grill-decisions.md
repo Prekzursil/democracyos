@@ -342,3 +342,18 @@ record did not.
 
 Specs may assert that a *control exists and states its effect* without asserting *which*
 effect, where the effect is an open decision — this is what J10 does for withdrawal (OD-1).
+
+## Added 20.08.2026 by the data-model design (WU-M3a-1)
+
+Designing the schema surfaced four decisions that only exist once erasure meets referential
+integrity. All four are recommendations awaiting owner ratification, and all four feed the DPIA.
+
+| ID | Question | Why it matters | Needed by |
+|---|---|---|---|
+| **OD-9** | **Forum-owner erasure**: when the owner of a forum exercises the right to erasure, does the request *refuse* (with an explanation that ownership must be transferred first — except transfer does not exist, per J3), or does it *auto-soft-delete the forum* and everything under it? | A forum has exactly one owner and no transfer path, so erasing an owner either orphans a live consultation or destroys other people's participation. Neither is obviously lawful; the second is arguably a disproportionate consequence for third parties. | Before the erasure pipeline (M8), and it may force a transfer feature into scope. |
+| **OD-10** | **Does erasure delete a comment's TEXT, or only its attribution?** | Deleting the text removes other participants' replies' context and can rewrite the record of a public deliberation; keeping the text while dropping the author is the usual forum answer but is only defensible if the text itself carries no personal data — which nobody can guarantee for free-form civic argument. | Same as OD-9; drives the `ON DELETE` choice on comments. |
+| **OD-11** | **Age-gate storage**: store a date of birth, or store only a boolean "attested 16+" (and if so, at what point is it re-checked)? | E4 requires the gate; storing a DOB is more personal data than the gate needs, which cuts against minimization. The design recommends the boolean. | Before the identity migration. |
+| **OD-12** | **Phone-verification storage**: keep the phone number, or keep only a verification event plus a one-way derivation of the number? | Stage-2 verification (G-10) needs to prevent one number verifying many accounts, which a hash can do without retaining the number itself. The design recommends never storing the raw number. | Before the verification-ladder migration. |
+
+Design-side recommendations are recorded in `docs/design/data-model.md`; they are **not**
+decisions until ratified here.

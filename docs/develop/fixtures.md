@@ -66,6 +66,36 @@ Voting methods per `legacy/lib/models/topic.js:73`.
 | `t-hierarchy-closed` | `hierarchy` | closed | **Added 20.08.2026 (J7 derivation).** Same reason: the consensus ranking is only rendered when closed. Carries a recorded ballot by `elena-voter` plus at least two more differing ballots, so the positional consensus has something to resolve. Ballots must **not** be a full tie — legacy crashes on one (see below); the new implementation must define and test tie behaviour deliberately. |
 | `t-closed-outcome` | `vote` | closed, outcome published | carries the mandatory outcome declaration (N11); asserted by J13 and the results journeys. |
 
+### Closed-topic outcome declarations — mandatory
+
+**Added 20.08.2026 (WU-M3a-1 found the previous spec unseedable).** The schema enforces
+decision C3/N11 with a CHECK: a topic in the `closed` lifecycle **must** carry an outcome
+declaration. The four closed method fixtures were specified without one, so they could not
+have been seeded at all. Each now carries the declaration below — deliberately short, because
+the point is that the field is non-empty and rendered, not that the prose is realistic.
+
+| slug | outcome declaration (ro) |
+|---|---|
+| `t-poll-closed` | `Rezultatul consultării a fost transmis comisiei de urbanism.` |
+| `t-cause-closed` | `Inițiativa a fost inclusă pe ordinea de zi a ședinței următoare.` |
+| `t-slider-closed` | `Rezultatul a fost publicat ca aviz consultativ; nu produce efecte juridice.` |
+| `t-hierarchy-closed` | `Ordinea de priorități rezultată a fost trimisă spre analiză bugetară.` |
+| `t-closed-outcome` | (already specified above — the canonical outcome-declaration fixture) |
+
+### Per-topic voting-stage requirement
+
+Also added by WU-M3a-1: the schema gives every topic a `requiredStageToVote`, because decision
+G-10 makes the verification stage a **per-consultation** setting rather than a global one. The
+contract must therefore assign it, or the seed has to invent it:
+
+| topic | requiredStageToVote | why |
+|---|---|---|
+| `t-vote`, `t-poll`, `t-cause`, `t-slider`, `t-hierarchy` | `stage2-phone` | The default for a real consultation, and what makes `ana-participant` (stage 1) the negative case every voting journey needs. |
+| all four `*-closed` fixtures | `stage2-phone` | Closed topics refuse votes regardless, but the field is NOT NULL, so it must be set; keeping it identical avoids implying the stage is what closed them. |
+
+A high-stakes `stage3-eid` fixture is deliberately **not** seeded: ROeID relying-party access is
+unresolved (OD-7), so a fixture requiring it would assert an integration that may never exist.
+
 ### `t-poll` option set
 
 Poll creation refuses a topic without options, exactly like hierarchy
