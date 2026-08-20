@@ -1,26 +1,35 @@
-*.csv
-*.dat
-*.DS_Store
-*.gz
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+
+# Coverage output
+coverage/
+.nyc_output/
+
+# Environment files — secrets never enter the repo (plan §8.8)
+.env
+.env.*
+!.env.example
+
+# Logs
 *.log
-*.out
-*.pid
-*.seed
-*.sublime-*
-.idea/*
-.npmrc
-.project
-.tmp
-/*.override.yml
-/tmp
-config*.json
-docker-cloud.yml
-lib-cov
-logs
-mongroup.conf
-node_modules
-npm-debug.log
-pids
-public
-results
-ssl
+npm-debug.log*
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Playwright (from M1)
+test-results/
+playwright-report/
+
+# Quarantined legacy tree is frozen and never executed; ignore any runtime
+# output it would generate if someone ever ran it by mistake.
+legacy/public/
+legacy/node_modules/
