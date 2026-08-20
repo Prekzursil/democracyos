@@ -1,0 +1,101 @@
+# e2e — ADVISORY lane (plan §4.2, WU-M1-12).
+#
+# Advisory semantics: this workflow is NEVER referenced by .quality/charter.yml
+# and is never a required gate. Promote to required only after 10 consecutive
+# green runs with zero pending specs (plan §4.2).
+#
+# Chromium only; retries: 2 and trace: on-first-retry come from
+# e2e/playwright.config.ts, which applies them whenever CI is set (GitHub
+# Actions sets CI=true on every run).
+name: e2e (advisory)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          # Synthetic CI-only credentials for the ephemeral service container.
+          POSTGRES_USER: e2e
+          POSTGRES_PASSWORD: e2e
+          POSTGRES_DB: e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U e2e"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      # Consumed by the app under test once M4 exists; harmless until then.
+      DATABASE_URL: postgresql://e2e:e2e@localhost:5432/e2e
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Selector policy gate (N9) — fail on DOM/CSS/XPath selectors
+        run: |
+          set -euo pipefail
+          shopt -s nullglob globstar
+          files=(e2e/**/*.spec.ts)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No spec files yet - selector gate vacuously green."
+            exit 0
+          fi
+          banned='\.locator\(|page\.\$|querySelector|xpath=|getByTestId|data-testid|toHaveScreenshot|toMatchSnapshot|["'\'']//'
+          if grep -nE "$banned" "${files[@]}"; then
+            echo "::error::Banned selector pattern found. Spec style (N9): getByRole/getByLabel/getByText only - no CSS/DOM selectors, no XPath, no data-testid as primary, no screenshot diffing."
+            exit 1
+          fi
+          echo "Selector policy: clean (${#files[@]} spec file(s) checked)."
+
+      - name: Pending/active ratio (from e2e/SPEC-LEDGER.md)
+        run: |
+          set -euo pipefail
+          if [ ! -f e2e/SPEC-LEDGER.md ]; then
+            echo "NOT-CHECKED: e2e/SPEC-LEDGER.md is missing (it lands at WU-M1-15)."
+            exit 0
+          fi
+          pending=$(grep -cE '\|[[:space:]]*pending[[:space:]]*\|' e2e/SPEC-LEDGER.md || true)
+          active=$(grep -cE '\|[[:space:]]*active[[:space:]]*\|' e2e/SPEC-LEDGER.md || true)
+          echo "Spec ledger: active=${active} pending=${pending}"
+          echo "Reminder (R13): a ledger row is a milestone-exit number, not a vibe; M5 may not delete legacy/ while anything is pending."
+
+      - name: Run e2e suite
+        run: npx playwright test --config e2e/playwright.config.ts
+
+      - name: Upload artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-artifacts
+          path: |
+            e2e/test-results/
+            e2e/playwright-report/
+          retention-days: 7
+          if-no-files-found: ignore
