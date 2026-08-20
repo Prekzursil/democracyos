@@ -1,0 +1,14 @@
+// Datasource + generator only at M0 (plan WU-M0-5). No models are defined here
+// on purpose: the relational schema is a reviewed design task (docs/design/
+// data-model.md, WU-M3a-1) and lands as migrations during milestone M3a.
+// Prisma 7 layout: the connection URL lives in prisma.config.ts (CLI) and in the
+// driver adapter passed to PrismaClient (runtime); DATABASE_URL is the single knob.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}

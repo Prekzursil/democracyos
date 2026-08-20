@@ -25,6 +25,9 @@ Thumbs.db
 .idea/
 .vscode/
 
+# Prisma generated client (regenerate with: npx prisma generate)
+packages/server/src/generated/
+
 # Playwright (from M1)
 test-results/
 playwright-report/
