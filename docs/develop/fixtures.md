@@ -64,10 +64,32 @@ Voting methods per `legacy/lib/models/topic.js:73`.
 
 ## Comment tree
 
-On `t-vote`: one root comment by `ana-registered` → reply by `bogdan-collaborator`
-→ nested reply by `ana-registered`; one upvote and one downvote on the root; one
-spam flag by `carmen-admin` on a second, separate root comment (J8's edit/delete
-targets are created inside the journey itself so fixtures stay immutable).
+**Corrected 20.08.2026** (J8 derivation, WU-M1-9). The previous version described a
+"nested reply" three levels deep and used the pre-correction handle `ana-registered`.
+Both were wrong: legacy threading is **exactly one level** — `CommentReplySchema`
+(`legacy/lib/models/comment.js:35-40`) holds only `author/text/createdAt/editedAt` with
+no child collection, and the reply row exposes no reply control
+(`legacy/lib/site/.../replies/list/component.js:71-110`). A depth-3 fixture could not be
+seeded and a spec asserting it would have been fiction.
+
+On `t-vote`:
+
+| Item | Author | Purpose |
+|---|---|---|
+| Root comment A | `ana-participant` | The reply and vote target. Stage-1 accounts may comment (G-10), which this proves. |
+| One reply to A | `bogdan-collaborator` | The single permitted threading level. |
+| One upvote on A | `elena-voter` | Score arithmetic (score = upvotes − downvotes). |
+| One downvote on A | `flavia-author` | Ditto, and proves votes come from different accounts than the author (self-voting is refused: `NO_AUTOVOTE`). |
+| Root comment B | `flavia-author` | A separate root carrying one spam flag by `carmen-admin`, for the flag/veil path. |
+
+J8's edit and delete targets are created **inside** the journey so fixtures stay
+immutable. Note that legacy blocks deleting a comment that has replies (`HAS_REPLIES`)
+unless the actor holds `canDeleteComments`, so the delete target must be reply-free.
+
+> **Not yet implemented (M1 review finding N6):** `e2e/fixtures/app.ts` models the forum
+> and topics but not this comment tree. J8 therefore creates its comments in-journey and
+> cannot activate until the fixture exists — the seed script (WU-M3a-10) and `app.ts` must
+> both grow it. Tracked as an activation prerequisite on the J8 ledger row.
 
 ## Invariants
 
