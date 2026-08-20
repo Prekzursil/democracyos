@@ -58,9 +58,28 @@ Voting methods per `legacy/lib/models/topic.js:73`.
 | `t-vote` | `vote` | open | yes/no/abstain (J5). |
 | `t-poll` | `poll` | open | multiple options (J6). |
 | `t-cause` | `cause` | open | support-style (J6). |
-| `t-slider` | `slider` | open | headline differentiator (J7). |
-| `t-hierarchy` | `hierarchy` | open | headline differentiator (J7). |
+| `t-slider` | `slider` | open | headline differentiator (J7). Range −100…+100, step 25 (nine buckets incl. neutral). |
+| `t-hierarchy` | `hierarchy` | open | headline differentiator (J7). **Options are mandatory at creation** — see below. |
+| `t-slider-closed` | `slider` | closed | **Added 20.08.2026 (J7 derivation).** Legacy renders the slider distribution only when the topic is closed, so an open topic alone cannot exercise the tally. Carries recorded votes across at least three distinct buckets, one of them neutral (`0`), because legacy's chart drops the neutral bucket and the new UI must not. |
+| `t-hierarchy-closed` | `hierarchy` | closed | **Added 20.08.2026 (J7 derivation).** Same reason: the consensus ranking is only rendered when closed. Carries a recorded ballot by `elena-voter` plus at least two more differing ballots, so the positional consensus has something to resolve. Ballots must **not** be a full tie — legacy crashes on one (see below); the new implementation must define and test tie behaviour deliberately. |
 | `t-closed-outcome` | `vote` | closed, outcome published | carries the mandatory outcome declaration (N11); asserted by J13 and the results journeys. |
+
+### `t-hierarchy` option set
+
+Topic creation refuses a hierarchy topic without options (`legacy/lib/db-api/topics/index.js:130-137`),
+so the seed cannot exist until they are named. Fixed at three, in this order at creation
+(the UI randomizes presentation order per visitor to avoid anchoring):
+
+1. `Reabilitarea parcului central`
+2. `Piste de biciclete pe strada principală`
+3. `Extinderea programului transportului public`
+
+A valid ballot is a **full permutation** of all three — legacy's UI cannot express partial
+rankings or ties, and the new implementation must reject them explicitly rather than by
+omission, because legacy's tie handling is broken: the deeper-level tie-break never narrows
+(a `.lenght` typo at `legacy/lib/db-api/topics/utils.js:163-165`) and a complete tie recurses
+past the last level and throws on `Object.keys(undefined)` (`utils.js:186-188`), failing the
+vote request.
 
 ## Comment tree
 
