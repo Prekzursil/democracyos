@@ -75,6 +75,56 @@ enum TopicAttrKind {
   @@map("topic_attr_kind")
 }
 
+// E5 — legacy/lib/models/topic.js:73 MINUS the '' member: legacy's "no action"
+// empty string becomes Topic.votingMethod IS NULL. Whether "no method" survives
+// as NULL or is subsumed by content_type='debate' is open Q-7 (C4) — the schema
+// supports both, so Q-7's resolution costs no migration.
+enum VotingMethod {
+  vote
+  poll
+  cause
+  slider
+  hierarchy
+
+  @@map("voting_method")
+}
+
+// E6 — decision C4 / plan WU-M3b-9. No legacy analogue.
+enum ContentType {
+  debate
+  proposal
+  poll
+
+  @@map("content_type")
+}
+
+// E7 — decision C3/N11. Legacy's closed state is DERIVED from closingAt
+// passing (TL-8); see CHECK C1 (raw SQL, topics migration) for how the two
+// coexist.
+enum Lifecycle {
+  open
+  closed
+  outcome_published
+
+  @@map("lifecycle")
+}
+
+// E14 — the nine keys of legacy/lib/tags-images/index.js:5-43 (AD-5's "fixed
+// 9-image dictionary"; legacy enum at legacy/lib/models/tag.js:16).
+enum TagImage {
+  arts
+  scale
+  police
+  signs
+  transportation
+  people
+  parks
+  agora
+  internet
+
+  @@map("tag_image")
+}
+
 // ── WU-M3a-2: identity core (design §2 M1/M2/M7/M8/M27) ─────────────────────
 //
 // Deliberately absent, pending owner ratification (no placeholders, no guesses):
@@ -108,6 +158,7 @@ model User {
   tokens           Token[]
   ownedForums      Forum[]
   forumPermissions ForumPermission[]
+  authoredTopics   Topic[]
 }
 
 // M8: server-side session rows make sign-out (AU-9), revoke-all and erasure
@@ -198,6 +249,12 @@ model Forum {
   owner       User?             @relation(fields: [ownerId], references: [id], onDelete: SetNull)
   permissions ForumPermission[]
   topicAttrs  ForumTopicAttr[]
+  topics      Topic[]
+
+  // Added by the WU-M3a-3 review (lands with the topics migration): Postgres
+  // does not index FK columns, and every erasure fan-out (design §5) would
+  // seq-scan Forum on ownerId without this.
+  @@index([ownerId])
 }
 
 // M10: legacy's embedded permissions[] array becomes a table. One permission
@@ -234,8 +291,9 @@ model ForumTopicAttr {
   max         Int?
 
   // F9: pure content child — lives and dies with its forum.
-  forum   Forum                  @relation(fields: [forumId], references: [id], onDelete: Cascade)
-  options ForumTopicAttrOption[]
+  forum      Forum                  @relation(fields: [forumId], references: [id], onDelete: Cascade)
+  options    ForumTopicAttrOption[]
+  attrValues TopicAttrValue[]
 
   // U13: attr names are column headers in the CSV (AD-6) — duplicates would be
   // ambiguous columns.
@@ -250,4 +308,178 @@ model ForumTopicAttrOption {
   title  String @db.VarChar(128)
 
   attr ForumTopicAttr @relation(fields: [attrId], references: [id], onDelete: Cascade)
+
+  // U13b — added 21.08.2026 by the WU-M3a-3 review: duplicate option names
+  // inserted freely, the same CSV/dropdown ambiguity U13 prevents, one level
+  // down. Additive; lands with the topics migration (design §4.1 U13b).
+  @@unique([attrId, name])
+}
+
+// ── WU-M3a-4: topics + tags (design §2 M13–M19, M25; migration 3 of §13) ─────
+//
+// Raw SQL in the same migration (design marks these raw):
+//   C1  — the two outcome-declaration CHECKs on Topic (C3/N11 + the TL-8
+//         reading: the declaration must exist before closingAt may be set).
+//   U7  — UNIQUE (id, votingMethod) on Topic: FK target for migration 4's
+//         composite FK Vote(topicId, method) → Topic(id, votingMethod).
+//   U11 — UNIQUE (topicId, id) on TopicOption: FK target for migration 4's
+//         Vote(topicId, pollOptionId) → TopicOption(topicId, id).
+//   plus the mediaTitle length CHECK (COR-11, M13) and the Tag hex-color
+//   CHECK (M25) — CHECKs are inexpressible in Prisma.
+// DEFERRED to migration 4+ (design §13): Vote, VoteRanking, TallyCounter,
+// AuditEntry, ConsultationKeyRef (references Topic, but belongs to the
+// votes+audit unit — OD-1/OD-5 cluster), trigger T6 (method/option freeze —
+// needs Vote to exist), comments, notifications, RLS (OD-4).
+
+// M25: platform-global tag — NO forumId (AD-5; per-forum tags are open Q-11).
+// No delete route exists for anyone (P-16) — backed by ON DELETE RESTRICT
+// from Topic.tagId (F8).
+model Tag {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  // U5: P-12 dedupe-by-slug (the legacy `hash`, tag.js:13,25). COR-18
+  // (rename never regenerates the slug) is an app-layer rule for WU-M4-15.
+  slug      String   @unique
+  name      String   @db.VarChar(50)
+  // Hex format is the raw CHECK tag_color_hex (legacy tag.js:15 +
+  // legacy/lib/regexps:5).
+  color     String?
+  image     TagImage @default(arts)
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  topics Topic[]
+}
+
+// M13/M14/M18/M19: Topic core. forumId is NOT NULL — legacy's was optional
+// (topic.js:52); the relational model closes that hole. The legacy `title`
+// virtual (COR-1, always undefined) and `content` virtual (COR-2, dead code)
+// are NOT ported — the display title IS mediaTitle (TL-9); no computed title
+// exists here. `topicId` (dead import residue) and `tags: [String]`
+// (duplicates the tag ref) are dropped.
+model Topic {
+  id                  String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  forumId             String            @db.Uuid
+  // Was legacy `owner` (topic.js:53). F6: SET NULL — published deliberation
+  // content is the community's record; attribution is the personal data.
+  authorId            String?           @db.Uuid
+  // TL-5: a tag is mandatory at creation (topic.js:54).
+  tagId               String            @db.Uuid
+  slug                String
+  // Display title everywhere (TL-9). Length CHECK is raw SQL (COR-11: the
+  // single limit constant lives in packages/shared at WU-M3b; the DB CHECK
+  // mirrors its recommended 200 — the user-visible form limit).
+  mediaTitle          String
+  // Display strings (legacy author/authorUrl, topic.js:58-63).
+  externalAuthor      String?           @db.VarChar(100)
+  externalAuthorUrl   String?           @db.VarChar(250)
+  source              String?           @db.VarChar(250)
+  coverUrl            String?           @db.VarChar(250)
+  // M14: NULL = legacy '' ("no action", pending Q-7). U7 (raw) makes
+  // (id, votingMethod) an FK target so a vote's method can never disagree
+  // with its topic's method (migration 4).
+  votingMethod        VotingMethod?
+  contentType         ContentType
+  // M18: lifecycle + outcome declaration; CHECK C1 (raw) forces the
+  // declaration whenever the topic is closed OR closingAt is set.
+  lifecycle           Lifecycle         @default(open)
+  outcomeDeclaration  String?
+  // M19 (G-10): per-consultation verification requirement; resolves the
+  // modelling half of Q-17.
+  requiredStageToVote VerificationStage @default(stage2_phone)
+  // TL-8: "closed" is derived from closingAt passing.
+  closingAt           DateTime?         @db.Timestamptz(6)
+  // TL-6/TL-7: draft = publishedAt NULL.
+  publishedAt         DateTime?         @db.Timestamptz(6)
+  // Legacy soft delete (topic.js:81).
+  deletedAt           DateTime?         @db.Timestamptz(6)
+  createdAt           DateTime          @default(now()) @db.Timestamptz(6)
+  updatedAt           DateTime          @default(now()) @updatedAt @db.Timestamptz(6)
+
+  // F7: RESTRICT — forum deletion is soft (P-9); a hard purge must be a
+  // deliberate future transaction, never an accidental cascade.
+  forum  Forum @relation(fields: [forumId], references: [id], onDelete: Restrict)
+  author User? @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  // F8: RESTRICT — no tag delete exists (P-16); even a rogue admin query
+  // cannot orphan topics.
+  tag    Tag   @relation(fields: [tagId], references: [id], onDelete: Restrict)
+
+  clauses    Clause[]
+  links      TopicLink[]
+  options    TopicOption[]
+  attrValues TopicAttrValue[]
+
+  // U6: slug-addressed URLs without cross-forum collisions (plan §2.4).
+  @@unique([forumId, slug])
+  // §4.4: public listing = published-only per forum (TL-7); admin
+  // draft-inclusive list (AD-3). Legacy had NO forum index at all.
+  @@index([forumId, publishedAt])
+  // §4.4: closed-state derivation and closing sweeps (TL-8).
+  @@index([closingAt])
+  // §4.4: tag filtering (J9; legacy topic.js:92).
+  @@index([tagId])
+}
+
+// M15: embedded ParagraphSchema → child table. U8 replaces per-serialization
+// re-sorting (TL-9) with an ordered-by-construction child table (plan §2.4
+// row 2). Sanitization is a write+read pipeline concern, not schema.
+model Clause {
+  id       String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  topicId  String  @db.Uuid
+  position Int
+  markup   String?
+  empty    Boolean @default(false)
+
+  // F9: pure content child — lives and dies with its topic.
+  topic Topic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  // U8: clause order is stored order, not per-read sort (TL-9).
+  @@unique([topicId, position])
+}
+
+// M16: embedded LinkSchema → table. Trivial.
+model TopicLink {
+  id       String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  topicId  String  @db.Uuid
+  text     String?
+  url      String? @db.VarChar(250)
+  position Int
+
+  // F9: pure content child.
+  topic Topic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+}
+
+// M14: the immutable option set for poll/hierarchy topics — separated from
+// derived tallies (TallyCounter, migration 4) so DI-7's shape mutation is
+// inexpressible. "Options mandatory at creation" (TL-4) is an API-layer rule
+// (design §12); the freeze trigger T6 lands with Vote (migration 4).
+model TopicOption {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  topicId  String @db.Uuid
+  position Int
+  label    String
+
+  // F9: the cascade exists for a deliberate hard purge only; F13's RESTRICT
+  // from VoteRanking (migration 4) protects options with recorded rankings.
+  topic Topic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  // U9/U10: option sets are well-ordered and duplicate-free (TL-4, VO-7/VO-12).
+  @@unique([topicId, position])
+  @@unique([topicId, label])
+}
+
+// M17: legacy Topic.attrs (Mixed) → typed rows keyed by the forum's attr
+// definitions (M11); surfaces in the topics CSV (AD-6). Storing them as jsonb
+// would re-create the blob the CSV round-trip has to parse. Typed per-kind
+// validation happens against ForumTopicAttr.kind at the boundary.
+model TopicAttrValue {
+  id      String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  topicId String @db.Uuid
+  attrId  String @db.Uuid
+  value   String
+
+  // F9: pure content children.
+  topic Topic          @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  attr  ForumTopicAttr @relation(fields: [attrId], references: [id], onDelete: Cascade)
+
+  // U12: one value per attr per topic (CSV round-trip, AD-6).
+  @@unique([topicId, attrId])
 }

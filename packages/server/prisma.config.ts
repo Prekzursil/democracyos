@@ -16,5 +16,9 @@ export default defineConfig({
   },
   datasource: {
     url: env('DATABASE_URL'),
+    // Only needed by `prisma migrate diff --from/to-migrations` (drift checks):
+    // the CLI replays the migrations into this scratch database. Optional so
+    // every other command keeps working without the variable.
+    ...(process.env.SHADOW_DATABASE_URL ? { shadowDatabaseUrl: env('SHADOW_DATABASE_URL') } : {}),
   },
 });
