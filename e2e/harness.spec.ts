@@ -20,6 +20,6 @@ test.fixme('harness quarantine: a pending spec reports amber, never red', async 
   // src: placeholder — real journey assertions each cite legacy/lib/...:LINE-LINE (§4.2).
   await page.goto('/');
   await expect(page.getByRole('heading', { name: forum.name })).toBeVisible();
-  expect(users.registered.handle).toBe('ana-registered');
+  expect(users.participant.handle).toBe('ana-participant');
   expect(topics.vote.slug).toBe('t-vote');
 });
