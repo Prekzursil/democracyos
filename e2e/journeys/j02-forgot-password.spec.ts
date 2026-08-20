@@ -182,7 +182,9 @@ test.fixme('J2: requesting a reset for a known validated e-mail shows the sent c
   // src: legacy/lib/site/forgot/component.js:49-51 (t('forgot.explanation'))
   // src: legacy/lib/translations/lib/ro.json:133 ("Îți vom trimite un email…")
   await page.goto('/forgot');
-  await expect(page.getByRole('heading', { name: /ai uitat parola|forgot password/i })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: /ai uitat parola|forgot password/i }),
+  ).toBeVisible();
   await expect(
     page.getByText(/link pentru resetarea parolei|link to reset your password/i),
   ).toBeVisible();
@@ -496,11 +498,7 @@ test.fixme('J2: a reset token is scope-bound — it must not validate an e-mail,
   const validateUrl = await validationLinkFromMailbox(second.email);
   const validationTokenId = tokenIdFromResetUrl(validateUrl);
 
-  await submitNewPassword(
-    page,
-    `/forgot/reset/${validationTokenId}`,
-    'parola-furata-j2-sintetica',
-  );
+  await submitNewPassword(page, `/forgot/reset/${validationTokenId}`, 'parola-furata-j2-sintetica');
   await expect(page.getByText(/link.*(invalid|expirat)|invalid|expired/i)).toBeVisible();
   await expect(
     page.getByText(/parola a fost modificată cu succes|password was successful?ly updated/i),
