@@ -1,0 +1,113 @@
+# XSS-sink and code-execution rules (plan WU-M2-2).
+# opengrep/semgrep compatible. Adapted from the qzp fleet ruleset
+# (quality-zero-platform .quality/opengrep/javascript-security.yaml).
+rules:
+  - id: js-inner-html-assignment
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      Assigning dynamic data to innerHTML is an XSS sink. Use textContent, or
+      sanitize with a vetted sanitizer before insertion.
+    metadata:
+      category: security
+      cwe: "CWE-79: Cross-site Scripting"
+      source: "plan WU-M2-2 (XSS sinks); adapted from qzp javascript-security.yaml"
+    patterns:
+      - pattern: $EL.innerHTML = $X
+      - pattern-not: $EL.innerHTML = "..."
+
+  - id: js-outer-html-assignment
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      Assigning dynamic data to outerHTML is an XSS sink. Build DOM nodes
+      explicitly or sanitize first.
+    metadata:
+      category: security
+      cwe: "CWE-79"
+      source: "plan WU-M2-2 (XSS sinks)"
+    patterns:
+      - pattern: $EL.outerHTML = $X
+      - pattern-not: $EL.outerHTML = "..."
+
+  - id: js-insert-adjacent-html
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      insertAdjacentHTML with dynamic content is an XSS sink. Use
+      insertAdjacentText / createElement, or sanitize first.
+    metadata:
+      category: security
+      cwe: "CWE-79"
+      source: "plan WU-M2-2 (XSS sinks)"
+    patterns:
+      - pattern: $EL.insertAdjacentHTML($POS, $X)
+      - pattern-not: $EL.insertAdjacentHTML($POS, "...")
+
+  - id: js-document-write
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      document.write with dynamic content is an XSS sink. Build DOM nodes
+      explicitly or set textContent.
+    metadata:
+      category: security
+      cwe: "CWE-79"
+      source: "adapted from qzp javascript-security.yaml"
+    patterns:
+      - pattern: document.write(...)
+
+  - id: js-dangerously-set-inner-html
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      dangerouslySetInnerHTML can introduce XSS if the HTML is not sanitized.
+      Sanitize with a vetted sanitizer or render as text.
+    metadata:
+      category: security
+      cwe: "CWE-79"
+      source: "adapted from qzp javascript-security.yaml"
+    patterns:
+      - pattern: <$EL dangerouslySetInnerHTML={...} />
+
+  - id: js-eval-use
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      eval() on untrusted input enables code injection. Use a parser
+      (JSON.parse) or explicit dispatch instead.
+    metadata:
+      category: security
+      cwe: "CWE-95"
+      source: "adapted from qzp javascript-security.yaml"
+    patterns:
+      - pattern: eval(...)
+
+  - id: js-function-constructor
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      The Function constructor evaluates strings as code, equivalent to eval.
+      Avoid constructing functions from dynamic strings.
+    metadata:
+      category: security
+      cwe: "CWE-95"
+      source: "adapted from qzp javascript-security.yaml"
+    patterns:
+      - pattern: new Function(...)
+
+  - id: js-child-process-exec
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      child_process.exec runs a shell and is prone to command injection with
+      dynamic input. Use execFile/spawn with an argument array.
+    metadata:
+      category: security
+      cwe: "CWE-78"
+      source: "adapted from qzp javascript-security.yaml"
+    patterns:
+      - pattern-either:
+          - pattern: child_process.exec($CMD, ...)
+          - pattern: cp.exec($CMD, ...)
+      - pattern-not: child_process.exec("...", ...)

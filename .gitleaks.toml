@@ -1,0 +1,54 @@
+# gitleaks allowlist (CI gate 5, plan WU-M2-2; standing control named in docs/ops/secrets.md).
+#
+# The CI gate (reusable-quality.yml@pinned, gate-secrets) runs gitleaks 8.30.1 ALWAYS;
+# this file only adds allowlist entries on top of the DEFAULT ruleset - it never
+# disables a rule. Every entry below is condition = "AND" (a finding must match
+# EVERY listed dimension to be suppressed) and pins the exact secret text, so no
+# entry can suppress anything but the one documented false positive it names.
+#
+# Baseline measured 2026-08-20 with the pinned gitleaks 8.30.1:
+#   * full history (5,727 commits): 8 findings - 2x the 2013 upstream README
+#     example key + 6x synthetic e2e fixture passwords.
+#   * working tree: the same 6 synthetic e2e fixture passwords (the 2013 key no
+#     longer exists in the tree; CI's shallow checkout therefore only ever sees
+#     the 6).
+
+title = "democracyos revival - gitleaks allowlist"
+
+[extend]
+# Extend, never replace: the full default gitleaks 8.30.1 ruleset stays active.
+useDefault = true
+
+# ── Entry 1: the 2013 upstream README documentation-example key ──────────────
+# docs/ops/secrets.md (WU-M0-7 audit) records this as the ONLY history finding:
+# a Mandrill API-key ILLUSTRATIVE PLACEHOLDER ("Eg: klomFRs7MWASlosCa2q6Y") in
+# two September-2013 upstream README revisions. Not a credential of this fork;
+# assessed dead and unrotatable (upstream's 2013-era mail product). Scoped to
+# the exact secret text AND the exact file AND the two exact commits, so this
+# entry cannot suppress any other finding, ever.
+[[allowlists]]
+description = "2013 upstream README Mandrill example key (docs/ops/secrets.md, WU-M0-7: not a live credential)"
+condition = "AND"
+commits = [
+  "77464ee1c66f446ef7c9b025559e11d7d41a400b",
+  "e783fb7b1cea8043c9096930593341f2100fd693",
+]
+paths = ['''^README\.md$''']
+regexTarget = "secret"
+regexes = ['''^klomFRs7MWASlosCa2q6Y$''']
+
+# ── Entry 2: synthetic Romanian fixture passwords in the M1 journey specs ────
+# The J1/J2/J10 characterization specs (WU-M1-2/-3/-11) carry deliberately fake
+# credentials named in Romanian so they are self-describing as synthetic
+# ("parola-sintetica" = "synthetic password", "parola-gresita" = "wrong
+# password", "parola-veche/noua" = "old/new password"). gitleaks generic-api-key
+# fires on all six. Scoped to: the exact secret shape (a "parola-"-prefixed
+# lowercase token) AND only inside e2e journey spec files AND only the
+# generic-api-key rule. A real credential would match none of these dimensions.
+[[allowlists]]
+description = "synthetic 'parola-*' fixture passwords in e2e journey specs (M1 characterization suite)"
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ['''^e2e/journeys/j\d{2}-[a-z0-9-]+\.spec\.ts$''']
+regexTarget = "secret"
+regexes = ['''^parola-[a-z0-9-]+$''']

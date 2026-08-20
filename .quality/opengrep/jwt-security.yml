@@ -1,0 +1,78 @@
+# JWT algorithm-confusion rules (plan WU-M2-2).
+# opengrep/semgrep compatible. The legacy platform's deputy-JWT forgery
+# (characterization defect register, SEC rows) is exactly this class of bug:
+# a verifier that accepts whatever algorithm the TOKEN declares.
+rules:
+  - id: jwt-verify-without-algorithms
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      jwt.verify called without an explicit algorithms allow-list. The token
+      then chooses its own algorithm (alg confusion: none / HS256-vs-RS256 key
+      reuse). Always pass { algorithms: [...] } pinned to the one algorithm
+      this service signs with.
+    metadata:
+      category: security
+      cwe: "CWE-347: Improper Verification of Cryptographic Signature"
+      source: "plan WU-M2-2 (JWT alg confusion)"
+    patterns:
+      - pattern: $JWT.verify($TOKEN, $KEY)
+      - metavariable-regex:
+          metavariable: $JWT
+          regex: '(?i).*(jwt|jose|jsonwebtoken).*'
+
+  - id: jwt-verify-options-missing-algorithms
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      jwt.verify is given an options object that does not pin `algorithms`.
+      Without the allow-list the token chooses its own algorithm (alg
+      confusion). Add algorithms: [...] pinned to the signing algorithm.
+    metadata:
+      category: security
+      cwe: "CWE-347"
+      source: "plan WU-M2-2 (JWT alg confusion)"
+    patterns:
+      - pattern: '$JWT.verify($TOKEN, $KEY, { ... })'
+      - pattern-not: '$JWT.verify($TOKEN, $KEY, { ..., algorithms: $ALGS, ... })'
+      - metavariable-regex:
+          metavariable: $JWT
+          regex: '(?i).*(jwt|jose|jsonwebtoken).*'
+
+  - id: jwt-algorithm-none
+    languages: [regex]
+    severity: ERROR
+    paths:
+      include:
+        - "*.ts"
+        - "*.tsx"
+        - "*.js"
+        - "*.jsx"
+        - "*.mjs"
+        - "*.cjs"
+    message: >-
+      The "none" JWT algorithm disables signature verification entirely. It
+      must never appear in a signing or verification configuration.
+    metadata:
+      category: security
+      cwe: "CWE-347"
+      source: "plan WU-M2-2 (JWT alg confusion)"
+    pattern-regex: '(?i)algorithms?\s*[:=]\s*\[?\s*[''"]none[''"]'
+
+  - id: jwt-decode-instead-of-verify
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      jwt.decode does NOT verify the signature - it parses the payload of any
+      forged token. Use jwt.verify with a pinned algorithms list. (If an
+      unverified read is genuinely intended - e.g. logging a kid before
+      verification - isolate it and suppress with a reasoned nosemgrep pragma.)
+    metadata:
+      category: security
+      cwe: "CWE-347"
+      source: "plan WU-M2-2 (JWT alg confusion)"
+    patterns:
+      - pattern: $JWT.decode(...)
+      - metavariable-regex:
+          metavariable: $JWT
+          regex: '(?i).*(jwt|jsonwebtoken).*'

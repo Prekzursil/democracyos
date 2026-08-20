@@ -1,0 +1,26 @@
+# Deliberate opengrep/semgrep scan set (gate 4).
+#
+# Shipping this file REPLACES the engine's built-in ignore template, which
+# silently drops test/ and tests/ directories and *_test.go at any depth while
+# reporting paths.skipped as "none" (measured by qzp, PR #289 - the pinned
+# workflow warns when this file is absent). With this file present, the scanned
+# set is chosen here, visibly: our vitest specs and e2e journeys ARE scanned.
+#
+# Every entry carries its rationale. Any REAL secret in an excluded tree is
+# still caught by gitleaks (gate 5), which scans everything.
+
+# Quarantined legacy tree: read-only 2016 reference code, never executed,
+# retained for behaviour archaeology and GPL-3.0 attribution (legacy/README.md).
+# SAST findings there are unfixable-by-design noise - the tree is frozen and
+# nothing imports it (plan R8 quarantine logic, same reasoning as lint).
+legacy/
+
+# Documentation: plans and audit records QUOTE vulnerable shapes and example
+# keys illustratively (e.g. docs/ops/secrets.md documents the 2013 example
+# key). Docs are not executable SAST targets (mirrors the qzp fleet template's
+# docs/ rationale).
+docs/
+
+# Generated coverage output (untracked in CI, present locally).
+coverage/
+test-results/

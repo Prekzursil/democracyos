@@ -1,0 +1,97 @@
+# LEAN 6-GATE CHARTER - democracyos revival (plan WU-M2-2).
+#
+# Shape copied from quality-zero-platform/.quality/charter.yml (charter of
+# 2026-06-16), ADAPTED for a CALLER repo: qzp's own charter_check greps the
+# reusable workflow's step names, but in a caller repo the gate steps live in
+# the REMOTE pinned workflow, not in this tree. What this repo controls - and
+# what can silently drift - is the CALLER-SIDE surface: the pinned caller
+# workflow and the per-gate config files whose absence makes a gate SKIP
+# rather than fail (the M2 trap). So each gate below declares the caller-side
+# artifacts that must exist for it to actually RUN, and charter_check.sh
+# fails if any goes missing or if a banned gate creeps back in.
+
+charter_version: "2026-06-16"
+model:
+  prevent: true
+  binary: true
+  ratchet_retired: true # 100% coverage everywhere; no ratcheting baseline
+
+# The caller workflow and its pin discipline.
+caller_workflow: ".github/workflows/quality.yml"
+pin_pattern: 'reusable-quality\.yml@[0-9a-f]{40}'
+
+# The six gates. `caller_config` lists the file(s) in THIS repo whose absence
+# would make the gate skip or degrade; charter_check.sh asserts each exists.
+gates:
+  - id: 1
+    name: lint-format-imports-seclint
+    autofix: true
+    tools:
+      ts_js: [oxlint, biome]
+    caller_config:
+      - ".oxlintrc.json"
+      - "biome.json"
+  - id: 2
+    name: types
+    tools:
+      ts: ["tsc --noEmit"]
+    caller_config:
+      - "packages/server/tsconfig.json"
+      - "packages/client/tsconfig.json"
+      - "packages/shared/tsconfig.json"
+  - id: 3
+    name: tests-coverage
+    policy: "STRICT 100% line+branch; reasoned greppable pragma only"
+    no_silent_pass: true
+    caller_config:
+      - "package.json" # must expose test:coverage (asserted separately)
+      - "vitest.config.ts"
+  - id: 4
+    name: sast
+    tools: [opengrep]
+    caller_config:
+      - ".quality/opengrep/prisma-raw-sql.yml"
+      - ".quality/opengrep/jwt-security.yml"
+      - ".quality/opengrep/xss-sinks.yml"
+      - ".quality/opengrep/logging-secrets.yml"
+      - ".semgrepignore"
+  - id: 5
+    name: secrets
+    tools: [gitleaks]
+    note: "gate runs ALWAYS at the pinned workflow SHA; the allowlist keeps it green honestly"
+    caller_config:
+      - ".gitleaks.toml"
+  - id: 6
+    name: deps
+    tools: [osv-scanner, dependabot] # NO Renovate
+    caller_config:
+      - "osv-scanner.toml"
+      - "package-lock.json"
+      # ".github/dependabot.yml" is appended to this list by WU-M2-5, in the
+      # same commit that creates the file (config + guard land atomically).
+
+# DELETED as gates (must NOT reappear in this repo as live config or CI).
+# charter_check.sh fails if any of these surfaces at the repo root or inside
+# .github/workflows. legacy/** is exempt: the quarantined tree keeps its
+# historical .snyk as archaeology (plan WU-M0-1), and it is dead config.
+deleted_gates:
+  - sonar
+  - codacy
+  - deepsource
+  - deepscan
+  - qlty
+  - codecov
+  - snyk
+  - applitools
+  - chromatic
+  - percy
+  - sentry
+  - pylint
+  - bandit
+  - eslint
+  - trivy
+  - renovate
+
+codeql:
+  as_gate: false
+  allowed: "nightly, public repos only"

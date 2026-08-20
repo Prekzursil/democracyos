@@ -1,0 +1,25 @@
+# osv-scanner configuration (CI gate 6, plan WU-M2-2).
+#
+# Presence of this file is what ARMS gate 6 in the pinned reusable workflow
+# (reusable-quality.yml detects `osv-scanner.toml` and runs
+# `osv-scanner scan source --config=osv-scanner.toml --recursive .` against the
+# repo's lockfiles - here the root package-lock.json). Without it the gate
+# silently skips, which M2's definition of done forbids.
+#
+# Policy: NO ignored vulnerabilities. The honest state of this file is empty.
+# The CI gate blocks on fixable, non-dev, CVSS >= 7.0 findings (the T0 severity
+# floor added in qzp PR #286) and prints everything else non-blockingly, so
+# there is no pressure to ignore entries here to stay green.
+#
+# If an ignore ever becomes necessary it MUST use this shape - id, a written
+# reason, and a review date - and must be re-justified at the WU-M8-12
+# secrets/deps re-audit:
+#
+#   [[IgnoredVulns]]
+#   id = "GHSA-xxxx-xxxx-xxxx"
+#   ignoreUntil = 2027-01-01T00:00:00Z
+#   reason = "why this is a false positive / unreachable here, with evidence"
+#
+# (TOML note: a file of comments is a valid, empty configuration. osv-scanner
+# parses it and applies zero overrides - verified locally with the pinned
+# v2.3.8: the scan runs and the config is honored.)

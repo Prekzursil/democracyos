@@ -1,0 +1,81 @@
+# Raw-SQL interpolation rules (plan WU-M2-2; enforces the WU-M4-2 ban).
+# opengrep/semgrep compatible. This stack is Prisma on PostgreSQL: raw SQL is
+# allowed ONLY as tagged templates inside reviewed migrations; the Unsafe
+# escape hatches are banned outright.
+rules:
+  - id: prisma-query-raw-unsafe
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      $queryRawUnsafe is banned in this codebase (plan WU-M4-2). It takes a
+      plain string, so any interpolated value is SQL injection. Use the tagged
+      template form prisma.$queryRaw`...` (values become bound parameters) or a
+      reviewed migration.
+    metadata:
+      category: security
+      cwe: "CWE-89: SQL Injection"
+      source: "plan WU-M2-2 / WU-M4-2 (raw-SQL ban)"
+    patterns:
+      - pattern: $CLIENT.$queryRawUnsafe(...)
+
+  - id: prisma-execute-raw-unsafe
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      $executeRawUnsafe is banned in this codebase (plan WU-M4-2). It takes a
+      plain string, so any interpolated value is SQL injection. Use the tagged
+      template form prisma.$executeRaw`...` or a reviewed migration.
+    metadata:
+      category: security
+      cwe: "CWE-89: SQL Injection"
+      source: "plan WU-M2-2 / WU-M4-2 (raw-SQL ban)"
+    patterns:
+      - pattern: $CLIENT.$executeRawUnsafe(...)
+
+  # Template-BUILT SQL: a template literal that starts with a SQL verb and
+  # interpolates values, used as a STRING (assigned / passed / returned) rather
+  # than as a Prisma tagged template. The tagged forms prisma.$queryRaw`...`
+  # and Prisma.sql`...` are SAFE (interpolations become bound parameters) and
+  # are deliberately NOT matched: a tagged template's backtick is immediately
+  # preceded by an identifier character, while a string build's backtick is
+  # preceded by an operator/delimiter (= ( , [ : ? or return/=>). Regex-based
+  # so it also catches files a JS parser rejects. Both-states corpus proven
+  # locally at WU-M2-2 (see the commit message).
+  - id: js-sql-built-by-template-string
+    languages: [regex]
+    severity: ERROR
+    paths:
+      include:
+        - "*.ts"
+        - "*.tsx"
+        - "*.js"
+        - "*.jsx"
+        - "*.mjs"
+        - "*.cjs"
+    message: >-
+      SQL is being BUILT as a template string with interpolated values - that
+      string will reach the database unparameterized. Use the Prisma tagged
+      template form (prisma.$queryRaw`...` / Prisma.sql`...`) so interpolations
+      become bound parameters, or move the statement into a reviewed migration.
+    metadata:
+      category: security
+      cwe: "CWE-89: SQL Injection"
+      source: "plan WU-M2-2 (template-built SQL)"
+    pattern-regex: '[=(\[,:?]\s*`\s*(?i:SELECT|INSERT|UPDATE|DELETE|CREATE|DROP|ALTER|TRUNCATE|GRANT|REVOKE)\b[^`]*\$\{'
+
+  - id: js-sql-built-by-concatenation
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      SQL is being built by string concatenation - the concatenated value
+      reaches the database unparameterized (SQL injection). Use the Prisma
+      tagged template form so values become bound parameters.
+    metadata:
+      category: security
+      cwe: "CWE-89: SQL Injection"
+      source: "plan WU-M2-2 (string-built SQL)"
+    patterns:
+      - pattern: '"$SQL" + $X'
+      - metavariable-regex:
+          metavariable: $SQL
+          regex: '(?i)^\s*(SELECT|INSERT|UPDATE|DELETE|CREATE|DROP|ALTER|TRUNCATE|GRANT|REVOKE)\b.*'
