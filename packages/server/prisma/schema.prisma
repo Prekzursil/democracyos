@@ -42,6 +42,39 @@ enum VerificationStage {
   @@map("verification_stage")
 }
 
+// E3 — verbatim legacy/lib/models/forum/roles.js:7-13. `owner` is NOT a role
+// (lives on Forum.ownerId — FR-1); `moderator` (config-gated, default off) is
+// omitted until the product decides the flag survives (additive later).
+enum ForumRole {
+  admin
+  collaborator
+  author
+  participant
+
+  @@map("forum_role")
+}
+
+// E4 — verbatim legacy/lib/models/forum/visibilities.js:5-10 (FR-6).
+enum ForumVisibility {
+  private
+  closed
+  public
+  collaborative
+
+  @@map("forum_visibility")
+}
+
+// E13 — the five discriminators at legacy/lib/models/forum/topics-attrs.js:17-39.
+enum TopicAttrKind {
+  number
+  string
+  long_string
+  enum
+  boolean
+
+  @@map("topic_attr_kind")
+}
+
 // ── WU-M3a-2: identity core (design §2 M1/M2/M7/M8/M27) ─────────────────────
 //
 // Deliberately absent, pending owner ratification (no placeholders, no guesses):
@@ -71,8 +104,10 @@ model User {
   createdAt         DateTime          @default(now()) @db.Timestamptz(6)
   updatedAt         DateTime          @default(now()) @updatedAt @db.Timestamptz(6)
 
-  sessions Session[]
-  tokens   Token[]
+  sessions         Session[]
+  tokens           Token[]
+  ownedForums      Forum[]
+  forumPermissions ForumPermission[]
 }
 
 // M8: server-side session rows make sign-out (AU-9), revoke-all and erasure
@@ -126,4 +161,93 @@ model Whitelist {
   // U21: trivial hygiene; citext for the same AU-7 reason as User.email.
   email     String   @unique @db.Citext
   createdAt DateTime @default(now()) @db.Timestamptz(6)
+}
+
+// ── WU-M3a-3: forums + permissions (design §2 M9/M10/M11) ────────────────────
+//
+// Raw SQL in the same migration (Prisma cannot express these):
+//   U3  — partial unique index forum_name_live ON lower(name) WHERE deletedAt
+//         IS NULL (kills DI-4, the find-then-save race; P-9: deletion frees
+//         the name).
+//   C8  — name format CHECK (FR-4) + reserved-name CHECK (verbatim from
+//         legacy/lib/models/forum/reserved-names.js).
+//   C9  — summary ≤ 300 INCLUSIVE (COR-12) + "a live forum always has an
+//         owner" (C9b, pairs with F3's SET NULL).
+//   T2  — forum_permission_not_owner trigger (FR-8's
+//         FORUM_OWNER_CANT_HAVE_ANOTHER_ROLE — cross-table, so not a CHECK).
+
+// M9: Forum core. Tag is NOT here — the design's migration list (§13) lands it
+// with topics (migration 3), because Topic.tagId is the FK that needs it.
+model Forum {
+  id         String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  // Uniqueness is the raw partial index U3, not a Prisma @unique — soft-deleted
+  // rows must free the name (P-9).
+  name       String
+  title      String
+  summary    String?
+  coverUrl   String?
+  // F3: SET NULL + C9b — a forum outlives its founder, but a LIVE forum
+  // without an owner is unadministrable; erasure must soft-delete first.
+  ownerId    String?         @db.Uuid
+  visibility ForumVisibility @default(public)
+  // FR-10/P-9: forum deletion is soft.
+  deletedAt  DateTime?       @db.Timestamptz(6)
+  createdAt  DateTime        @default(now()) @db.Timestamptz(6)
+  updatedAt  DateTime        @default(now()) @updatedAt @db.Timestamptz(6)
+
+  owner       User?             @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  permissions ForumPermission[]
+  topicAttrs  ForumTopicAttr[]
+}
+
+// M10: legacy's embedded permissions[] array becomes a table. One permission
+// per user per forum (U4 — FR-8/P-8: a new grant is an upsert, never a second
+// row); "owner can never hold a role" is trigger T2 (raw SQL).
+model ForumPermission {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  forumId   String    @db.Uuid
+  userId    String    @db.Uuid
+  role      ForumRole
+  grantedAt DateTime  @default(now()) @db.Timestamptz(6)
+
+  // F4: a role grant is a pure identity↔forum edge; meaningless after erasure.
+  forum Forum @relation(fields: [forumId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([forumId, userId])
+  // §4.4: erasure fan-out + settings surfaces.
+  @@index([userId])
+}
+
+// M11: the Mongoose discriminator union (Number/String/LongString/Enum/Boolean)
+// is a tagged union — kind + nullable bounds + an option child table. Feeds the
+// topics-CSV columns (AD-6). Not jsonb.
+model ForumTopicAttr {
+  id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  forumId     String        @db.Uuid
+  name        String        @db.VarChar(32)
+  title       String        @db.VarChar(128)
+  description String?       @db.VarChar(256)
+  mandatory   Boolean       @default(false)
+  kind        TopicAttrKind
+  min         Int?
+  max         Int?
+
+  // F9: pure content child — lives and dies with its forum.
+  forum   Forum                  @relation(fields: [forumId], references: [id], onDelete: Cascade)
+  options ForumTopicAttrOption[]
+
+  // U13: attr names are column headers in the CSV (AD-6) — duplicates would be
+  // ambiguous columns.
+  @@unique([forumId, name])
+}
+
+// M11 child: option set for kind = 'enum'.
+model ForumTopicAttrOption {
+  id     String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  attrId String @db.Uuid
+  name   String @db.VarChar(128)
+  title  String @db.VarChar(128)
+
+  attr ForumTopicAttr @relation(fields: [attrId], references: [id], onDelete: Cascade)
 }
