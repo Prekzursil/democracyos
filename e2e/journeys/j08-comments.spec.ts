@@ -18,14 +18,17 @@
 // requires anyway for edit/delete targets — fixtures stay immutable,
 // docs/develop/fixtures.md "Comment tree") and reference the contract tree
 // only conceptually.
-// TODO-AMBIGUOUS (contract, not source): docs/develop/fixtures.md "Comment
-// tree" says root comment → reply → "nested reply", and attributes comments
-// to `ana-registered` — a handle that no longer exists after the N1
-// correction (the users table says `ana-participant`). A *nested* reply is
-// also unrepresentable in the legacy model: replies are a flat embedded
-// array with no children (see the threading test below). The contract file
-// needs a follow-up fix; this spec asserts the flat, one-level shape the
-// legacy source actually supports.
+// RESOLVED (was TODO-AMBIGUOUS against the contract, not the source): this
+// spec's derivation prompted the fix. docs/develop/fixtures.md's "Comment
+// tree" used to describe root → reply → "nested reply" attributed to
+// `ana-registered`; both were wrong — the handle predates the N1 role/stage
+// correction, and a *nested* reply is unrepresentable in the legacy model,
+// where replies are a flat embedded array with no children (see the threading
+// test below). The contract was corrected in commit 607e161f to the flat,
+// one-level shape authored by `ana-participant`. Still outstanding: the
+// corpus is described but not yet modelled in e2e/fixtures/app.ts, so this
+// spec creates its comments in-journey — an activation prerequisite tracked
+// in docs/CHARACTERIZATION.md §7.
 //
 // Threading depth, READ from the model: a Comment embeds `replies:
 // [CommentReplySchema]`, and CommentReplySchema has author/text/createdAt/

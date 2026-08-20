@@ -32,11 +32,12 @@ quiet fix).
 
 Notes:
 
-- Spec files do not exist yet — J1–J10 are separate WUs (WU-M1-2 … WU-M1-11)
-  dispatched after the harness. The plan fixes only the naming endpoints
-  (`j01-signup.spec.ts` … `j10-settings.spec.ts`); the intermediate filenames
-  above are inferred from the journey titles, and the journey WU that creates
-  each file must update this row if it names the file differently.
+- **All ten spec files now exist** (WU-M1-2 … WU-M1-11, completed 20.08.2026); the
+  filenames above are the real paths, verified against the tree. Historical note: the
+  plan fixed only the naming endpoints (`j01-signup.spec.ts` … `j10-settings.spec.ts`)
+  and the intermediate names here were inferred from the journey titles, so each
+  creating WU had to correct its own row on a mismatch — only J5 did (`j05-vote.spec.ts`
+  → `j05-vote-method.spec.ts`). The same rule still applies to any future spec.
 - `e2e/harness.spec.ts` is the harness's own quarantine self-check, not a
   journey; it is deleted or activated at the maintainer's discretion once the
   first real journey activates, and it never appears in this table.
