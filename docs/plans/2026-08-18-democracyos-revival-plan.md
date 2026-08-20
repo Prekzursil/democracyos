@@ -426,9 +426,26 @@ after M2, every commit is governed.
 
 **Journeys:** unchanged (all still pending; the ratio is reported, not improved, by this milestone).
 
-**Definition of done:** three green shadow runs of the qzp caller workflow on `main`; every one of the 6 gates
-either *ran* or is documented as legitimately absent (no silent skips); `npm ci && npm run test:coverage` works
-on a clean Node 22 checkout; the format-only commit is in `.git-blame-ignore-revs`; Q6 answered with evidence.
+**WU-M2-0 — default-branch flip (added 20.08.2026 by the M2 adversarial review, finding B2).** A prerequisite
+the plan never stated, and without it every other row in this milestone is inert. The remote has exactly one
+head — `master`, still at the 2016 upstream commit `ad8627d2` — and it is the repository default, while this
+plan, `quality.yml` and the definition of done all speak of `main`. Consequences measured, not assumed: a push
+run cannot fire; a PR from a feature branch default-targets `master` so no PR run fires either;
+`workflow_dispatch` is not even offered, because Actions only exposes dispatch for workflows living on the
+default branch; and Dependabot ignores `.github/dependabot.yml` unless it is present on the default branch.
+Nothing goes red — everything is simply **absent**, which is the failure mode this whole milestone exists to
+prevent. Required steps, in order and **owner-side** (they need a push, which agents never do): push
+`feat/m0-foundation`; open its PR; create `main` from the merged result; set `main` as the repository default;
+then delete or freeze `master`. Until the flip, `quality.yml` lists both branch names so the surface is never
+inert.
+
+**Definition of done:** WU-M2-0 done (a `main` branch exists and is the default); three green shadow runs of the
+qzp caller workflow on `main`; every one of the 6 gates either *ran* or is documented as legitimately absent (no
+silent skips); `npm ci && npm run test:coverage` works on a clean Node 22 checkout; `.git-blame-ignore-revs`
+either carries the format-only commit or records honestly that none exists (M0 finding N1 — the tree was
+authored pre-formatted, so the commit is vacuous, not skipped); Q6 answered with evidence; and the private
+security-reporting channel promised by `SECURITY.md` is actually enabled (M2 review finding B1 — verified
+`{"enabled":true}` on 20.08.2026; re-check if the repo is ever recreated or transferred).
 
 **Exit action:** flip `profiles/repos/democracyos.yml` to `phase: absolute` (ONBOARDING step 7) — and only
 then create `.coverage-thresholds.json` with `enforcement.command: "npm run test:coverage"` (N7 satisfied,

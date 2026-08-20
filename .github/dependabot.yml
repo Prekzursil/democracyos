@@ -1,7 +1,12 @@
 # Dependabot (CI gate 6's second half, plan WU-M2-5).
 #
 # npm at "/" only - this matches the qzp control-plane enrollment profile
-# (profiles/repos/democracyos.yml: dependabot.updates: [npm /], WU-M2-3).
+# (mirrors the PLANNED enrollment profile profiles/repos/democracyos.yml, which
+# does not exist yet — the control-plane PR is WU-M2-3, still outstanding).
+#
+# NOTE (M2 review, finding B2): Dependabot reads this file only from the
+# repository DEFAULT branch. The default is still `master` at the 2016 upstream
+# commit, so this config is inert until the default-branch flip (WU-M2-0).
 # The github-actions ecosystem is deliberately ABSENT: the only action ref in
 # this repo's quality lane is the reusable-quality.yml SHA pin, and Q10 assigns
 # those bumps to qzp's bump-workflow-shas wave (or a manual bump), not to

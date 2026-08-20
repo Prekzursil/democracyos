@@ -31,10 +31,22 @@ name: quality
 
 on:
   workflow_dispatch:
+  # Both branch names are listed deliberately (M2 review, finding B2). The remote
+  # currently has exactly ONE head - `master`, still at the 2016 upstream commit -
+  # and it is the default branch, while the plan, this workflow and the M2
+  # definition of done all speak of `main`. Listing only `main` made the whole
+  # trigger surface inert: no push run, no PR run (a PR from a feature branch
+  # default-targets the repo default, i.e. `master`), and no `workflow_dispatch`
+  # entry, because Actions only offers dispatch for workflows present on the
+  # default branch. Not red - absent, which is the worse failure.
+  #
+  # `master` stays listed until the default-branch flip lands (see the enrollment
+  # step added to the plan's M2 section); after the flip it is harmless, since the
+  # branch is then either gone or frozen upstream history.
   push:
-    branches: [main]
+    branches: [main, master]
   pull_request:
-    branches: [main]
+    branches: [main, master]
 
 permissions:
   contents: read

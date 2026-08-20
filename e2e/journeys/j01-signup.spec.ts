@@ -25,6 +25,7 @@
 // real error statuses; this journey asserts only the user-visible outcome, so
 // its assertions survive that fix — see docs/CHARACTERIZATION.md.
 
+import type { Page } from '@playwright/test';
 import { expect, test } from '../fixtures/app.js';
 
 // J1 creates its own accounts — fixture users stay immutable
@@ -58,7 +59,7 @@ type SignupProfile = ReturnType<typeof uniqueSignupProfile>;
 // required. src: legacy/lib/site/sign-up/component.js:138-194
 // Labels: RO copy from legacy/lib/translations/lib/ro.json:282,300,301,199,294.
 // The birth-date field is NEW. src: decision G-3/E4 (grill ledger)
-async function fillAndSubmitSignup(page: import('@playwright/test').Page, profile: SignupProfile) {
+async function fillAndSubmitSignup(page: Page, profile: SignupProfile) {
   await page.goto('/signup');
   await page.getByLabel(/email/i).fill(profile.email);
   await page.getByLabel(/^prenume|first name/i).fill(profile.firstName);
@@ -73,10 +74,7 @@ async function fillAndSubmitSignup(page: import('@playwright/test').Page, profil
 // Fields: email + password, both required. src: legacy/lib/site/sign-in/component.js:83-112
 // Submit button: legacy RO uses "Login" (ro.json:273); the new accessible name
 // is defined here as Autentificare with legacy/EN fallbacks.
-async function fillAndSubmitSignin(
-  page: import('@playwright/test').Page,
-  creds: { email: string; password: string },
-) {
+async function fillAndSubmitSignin(page: Page, creds: { email: string; password: string }) {
   await page.goto('/signin');
   await page.getByLabel(/email/i).fill(creds.email);
   await page.getByLabel(/^parol[aă]$|^password$/i).fill(creds.password);
