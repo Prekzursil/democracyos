@@ -318,3 +318,27 @@ Additional civic candidates: Deliberăm, Delibero, Decidem, Forul, ForulCivic, C
 
 ## New Directions Captured Mid-Grill
 - (none yet)
+
+---
+
+# OPEN DECISIONS — unresolved, as of 20.08.2026
+
+Authoritative in-repo list of questions that are **not yet decided**. Specs and work units
+must cite this section (`// src: OPEN DECISION <id> (grill decisions)`) rather than inventing
+an answer or silently picking one. Added because the J10 derivation (WU-M1-11) needed to cite
+the consent-withdrawal question and found no row for it — the working ledger had it, the repo
+record did not.
+
+| ID | Question | Why it matters | Needed by |
+|---|---|---|---|
+| **OD-1** | **Consent-withdrawal semantics for votes**: when a participant withdraws Art. 9 consent, is their vote *deleted*, *anonymised*, or *retained but excluded from tallies*? | Directly contradictory pressures: GDPR erasure (E2/E3) versus the append-only hash-chained audit log (D3/G-7), which exists so published results are tamper-evident. Deleting rows breaks the chain; keeping them may breach erasure. The answer shapes the vote table, the audit substrate and the DPIA. | **Before the vote model is built** (M6/M7). Blocking for the audit-log design. |
+| **OD-2** | **Retention periods** for vote records, moderation logs, abuse-signal logs and notification history. | Required by the privacy notice and the DPIA; drives the deletion pipeline and the audit window. | Before the DPIA is signed (M8) and before the retention job exists. |
+| **OD-3** | **Brand name and `.ro` domain.** Deferred by the owner pending discussion with others; the checked-availability shortlist is external to this repo. | Blocks the single `<BRAND>` substitution commit (WU-M2-6) and every published legal document. | Blocks nothing technical; blocks launch copy (M9). |
+| **OD-4** | **Row-level security enforcement through Prisma**: interactive transaction with a session variable against a non-`BYPASSRLS` role, versus app-layer authorization with RLS as defence-in-depth. | Prisma has no native RLS support, so this is a real architectural choice; an untested policy must be treated as absent. | M3a (schema) / M4 (server). |
+| **OD-5** | **Vote-pseudonym key custody**: where the per-consultation HMAC key lives, who can read it, rotation policy, and what rotation does to already-published tallies. | Get this wrong and "pseudonymous" collapses into "identifiable", breaking the whole Art. 9 posture. Feeds the DPIA. | M3a / M7. |
+| **OD-6** | **Hosting**: managed versus self-hosted PostgreSQL, and if managed, the region plus a transfer analysis for Art. 9 data. | Determines the data-protection paperwork and the deployment topology. | M9, but a hosted *dev* instance would pull it earlier. |
+| **OD-7** | **ROeID relying-party feasibility** for a private/NGO operator (verification stage 3). | The verification ladder ships with stages 1–2 regardless; stage 3 is a flagged adapter. Longest external latency of any open item, so the inquiry goes out early. | Post-launch; must not block M9. |
+| **OD-8** | **Counsel review** of the drafted privacy notice, ToS, DSA notice-and-action, cookie policy and DPIA. | Blocking gate before any of them is published. | Before launch (M8/M9). |
+
+Specs may assert that a *control exists and states its effect* without asserting *which*
+effect, where the effect is an open decision — this is what J10 does for withdrawal (OD-1).
