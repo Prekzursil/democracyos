@@ -1,6 +1,8 @@
-// Datasource + generator only at M0 (plan WU-M0-5). No models are defined here
-// on purpose: the relational schema is a reviewed design task (docs/design/
-// data-model.md, WU-M3a-1) and lands as migrations during milestone M3a.
+// Relational schema per the reviewed design record (docs/design/data-model.md,
+// WU-M3a-1). Models land migration-by-migration following the design's §13 list;
+// everything Prisma cannot express (citext extension, partial/expression unique
+// indexes, CHECKs, constraint triggers) lives as raw SQL inside the same
+// migration directory — see each migration.sql.
 // Prisma 7 layout: the connection URL lives in prisma.config.ts (CLI) and in the
 // driver adapter passed to PrismaClient (runtime); DATABASE_URL is the single knob.
 
@@ -11,4 +13,117 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+// ── Enums (design §3) ────────────────────────────────────────────────────────
+
+// E1 — decision C8: legacy's 18-locale enum shrinks to {ro,en}.
+enum Locale {
+  ro
+  en
+
+  @@map("locale")
+}
+
+// E2 — verbatim (kebab→snake) from legacy/lib/models/token.js:7.
+enum TokenScope {
+  password_reset
+  email_validation
+
+  @@map("token_scope")
+}
+
+// E12 — decision G-10 verification ladder; ordered, mirrors e2e/fixtures/users.ts.
+enum VerificationStage {
+  stage1_email
+  stage2_phone
+  stage3_eid
+
+  @@map("verification_stage")
+}
+
+// ── WU-M3a-2: identity core (design §2 M1/M2/M7/M8/M27) ─────────────────────
+//
+// Deliberately absent, pending owner ratification (no placeholders, no guesses):
+//   - OD-11 age-gate storage (design M6 recommends `ageAttestedAt`, not ratified)
+//   - OD-12 phone storage (`VerificationEvent`, design M29 — later migration)
+//   - `ConsentRecord` (M28) + `consent_purpose` (E16) — lands with its own WU.
+// No `staff` column by design (M5 — RBAC is WU-M4-7).
+
+model User {
+  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  firstName         String?           @db.VarChar(100)
+  lastName          String?           @db.VarChar(100)
+  // U1: real UNIQUE on citext — legacy's index was NOT unique (plan §2.4 row 6,
+  // AU-4); citext makes AU-7 case-insensitivity structural.
+  email             String            @unique @db.Citext
+  emailValidated    Boolean           @default(false)
+  locale            Locale            @default(ro)
+  passwordHash      String?
+  profilePictureUrl String?
+  disabledAt        DateTime?         @db.Timestamptz(6)
+  // §11: current stage, denormalized; the evidence trail (VerificationEvent)
+  // arrives in a later migration once OD-12 is ratified.
+  verificationStage VerificationStage @default(stage1_email)
+  // M2: exactly two notification types end to end (SE-4, P-15, COR-21).
+  notifyReplies     Boolean           @default(true)
+  notifyNewTopic    Boolean           @default(false)
+  createdAt         DateTime          @default(now()) @db.Timestamptz(6)
+  updatedAt         DateTime          @default(now()) @updatedAt @db.Timestamptz(6)
+
+  sessions Session[]
+  tokens   Token[]
+}
+
+// M8: server-side session rows make sign-out (AU-9), revoke-all and erasure
+// real operations instead of cookie-expiry hopes.
+model Session {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @db.Uuid
+  // U25: session fixation hygiene.
+  tokenHash Bytes     @unique
+  createdAt DateTime  @default(now()) @db.Timestamptz(6)
+  expiresAt DateTime  @db.Timestamptz(6)
+  revokedAt DateTime? @db.Timestamptz(6)
+
+  // F1: pure identity artifact — dies with the account.
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// M7: tokenHash is sha-256 of the secret (the secret itself is never stored);
+// single-use = the consuming transaction DELETEs the row (AU-6/AU-12).
+// The only sanctioned lookup is WHERE tokenHash=$1 AND scope=$2 AND
+// expiresAt > now() — a repository contract (M4); a schema cannot force a
+// WHERE clause (design §14, SEC-1/SEC-2).
+model Token {
+  id        String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String     @db.Uuid
+  scope     TokenScope
+  // U2: forgery-by-collision; makes "consume exactly once" an atomic DELETE.
+  tokenHash Bytes      @unique
+  // SEC-3: legacy tokens lived forever — the field cannot be omitted here.
+  expiresAt DateTime   @db.Timestamptz(6)
+  // jsonb allow-list entry (design §6): request forensics, zod-parsed at the
+  // boundary, retention bounded by expiresAt + cleanup job.
+  meta      Json?
+  createdAt DateTime   @default(now()) @db.Timestamptz(6)
+
+  // F1: pure identity artifact — dies with the account.
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // P-5 delete-then-create per scope; the expiry cleanup job (SEC-3).
+  @@index([userId, scope])
+  @@index([expiresAt])
+}
+
+// M27: the table IS the email whitelist — legacy's single-member `type` enum
+// is dropped. No FK to User on purpose; erasure deletes the row explicitly
+// (design §5, N8).
+model Whitelist {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  // U21: trivial hygiene; citext for the same AU-7 reason as User.email.
+  email     String   @unique @db.Citext
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
 }
