@@ -32,7 +32,9 @@ export default defineConfig({
     projects: ['packages/*'],
     coverage: {
       provider: 'v8',
-      all: true,
+      // vitest 4 removed `all` from CoverageOptions (root tsc sweep flags it,
+      // TS2769); its old `all: true` semantics are v4's default - every file
+      // matching `include` is reported whether executed or not.
       include: ['packages/*/src/**'],
       exclude: [
         'legacy/**',

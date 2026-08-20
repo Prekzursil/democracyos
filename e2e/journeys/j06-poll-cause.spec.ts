@@ -53,9 +53,9 @@
 // Romanian-primary deployment is itself a defect; intended behaviour is a
 // complete RO-primary catalogue with EN fallback.
 
-import { expect, test } from '../fixtures/app';
+import { expect, test } from '../fixtures/app.js';
 import type { Page } from '@playwright/test';
-import type { FixtureUser } from '../fixtures/users';
+import type { FixtureUser } from '../fixtures/users.js';
 
 // ---------------------------------------------------------------------------
 // TODO-AMBIGUOUS (fixture gaps this WU cannot close — one file only):

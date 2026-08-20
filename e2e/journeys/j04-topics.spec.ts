@@ -54,8 +54,8 @@
 // below are new-design Romanian with the legacy EN string as fallback.
 
 import type { Page } from '@playwright/test';
-import { expect, test, type VotingMethod } from '../fixtures/app';
-import type { FixtureUser } from '../fixtures/users';
+import { expect, test, type VotingMethod } from '../fixtures/app.js';
+import type { FixtureUser } from '../fixtures/users.js';
 
 // ---------------------------------------------------------------------------
 // Accessible names (Romanian-primary, EN fallback).
@@ -160,7 +160,9 @@ async function signIn(page: Page, user: FixtureUser): Promise<void> {
 
 async function signOut(page: Page, user: FixtureUser): Promise<void> {
   // Same user-menu convention as J3; J1 owns the sign-out characterization.
-  await page.getByRole('button', { name: new RegExp(user.handle.split('-')[0], 'i') }).click();
+  await page
+    .getByRole('button', { name: new RegExp(user.handle.split('-')[0] ?? user.handle, 'i') })
+    .click();
   await page.getByRole('link', { name: /deconectare|log ?out|sign ?out/i }).click();
 }
 
@@ -361,7 +363,11 @@ for (const { method, options } of METHOD_CASES) {
   }) => {
     const mediaTitle = uniqueTitle(method);
     await signIn(page, users.admin);
-    await fillAndSaveTopic(page, forum.slug, { mediaTitle, method, options });
+    await fillAndSaveTopic(page, forum.slug, {
+      mediaTitle,
+      method,
+      ...(options ? { options } : {}),
+    });
 
     // Saved: the success message renders and the client lands on the topic's
     // edit form (create → redirect to admin.topics.id).

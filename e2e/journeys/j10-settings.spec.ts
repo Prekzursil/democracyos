@@ -39,7 +39,7 @@
 // enforcement) are J1/J2 territory — cross-referenced from
 // j01-signup.spec.ts / j02-forgot-password.spec.ts, not restated here.
 
-import { expect, test } from '../fixtures/app';
+import { expect, test } from '../fixtures/app.js';
 
 type PageT = import('@playwright/test').Page;
 

@@ -34,7 +34,7 @@
 // src: legacy/lib/site/boot/router.js:49-56 (onEnter: restrictLoggedin)
 // src: legacy/lib/site/boot/router.js:86-91 (restrictLoggedin → window.location = '/')
 
-import { expect, test } from '../fixtures/app';
+import { expect, test } from '../fixtures/app.js';
 
 type PageT = import('@playwright/test').Page;
 

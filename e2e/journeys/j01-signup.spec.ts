@@ -25,7 +25,7 @@
 // real error statuses; this journey asserts only the user-visible outcome, so
 // its assertions survive that fix — see docs/CHARACTERIZATION.md.
 
-import { expect, test } from '../fixtures/app';
+import { expect, test } from '../fixtures/app.js';
 
 // J1 creates its own accounts — fixture users stay immutable
 // (e2e/fixtures/users.ts:15-17; docs/develop/fixtures.md "Users").

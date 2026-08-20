@@ -49,8 +49,8 @@
 // legacy/lib/translations/lib/en.json:7-39), so every permissions-panel name
 // below is new-design Romanian with the legacy EN string as fallback.
 
-import { expect, test } from '../fixtures/app';
-import { type FixtureRole, type FixtureUser, fixtureUserByRole } from '../fixtures/users';
+import { expect, test } from '../fixtures/app.js';
+import { type FixtureRole, type FixtureUser, fixtureUserByRole } from '../fixtures/users.js';
 
 type Page = import('@playwright/test').Page;
 
@@ -609,7 +609,9 @@ test.fixme('J3: ownership cannot be transferred — there is no such action for 
     await expect(
       page.getByRole('button', { name: /transfer[aă]? proprietatea|transfer ownership/i }),
     ).not.toBeVisible();
-    await page.getByRole('button', { name: new RegExp(user.handle.split('-')[0], 'i') }).click();
+    await page
+      .getByRole('button', { name: new RegExp(user.handle.split('-')[0] ?? user.handle, 'i') })
+      .click();
     await page.getByRole('link', { name: /deconectare|log ?out|sign ?out/i }).click();
   }
 });

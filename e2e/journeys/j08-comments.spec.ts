@@ -61,9 +61,9 @@
 // Stage-1 participant may cast them); docs/CHARACTERIZATION.md must record
 // the deliberate choice at activation.
 
-import { expect, test } from '../fixtures/app';
+import { expect, test } from '../fixtures/app.js';
 import type { Page } from '@playwright/test';
-import type { FixtureUser } from '../fixtures/users';
+import type { FixtureUser } from '../fixtures/users.js';
 
 // ---------------------------------------------------------------------------
 // Accessible names (Romanian-primary, EN fallback). The new UI must expose

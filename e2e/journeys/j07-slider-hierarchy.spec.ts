@@ -34,9 +34,9 @@
 // Romanian-primary deployment is itself a defect; intended behaviour is a
 // complete RO-primary catalogue with EN fallback.
 
-import { expect, test } from '../fixtures/app';
+import { expect, test } from '../fixtures/app.js';
 import type { Page } from '@playwright/test';
-import type { FixtureUser } from '../fixtures/users';
+import type { FixtureUser } from '../fixtures/users.js';
 
 // ---------------------------------------------------------------------------
 // TODO-AMBIGUOUS (fixture gap — closed topics for the results views): the
@@ -596,7 +596,7 @@ test.fixme('J7: re-ranking replaces the previous ranking instead of duplicating 
   // The echoed first choice is the option that was moved into first place
   // (text comparison is prefix-based because the ranking rows also contain
   // the move-control labels while the echoed rows do not).
-  expect(echoedItems[0]).toBe(before[1].replace(/\s*(mută.*|move.*)$/i, '').trim());
+  expect(echoedItems[0]).toBe((before[1] ?? '').replace(/\s*(mută.*|move.*)$/i, '').trim());
 });
 
 // ---------------------------------------------------------------------------

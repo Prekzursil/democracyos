@@ -60,8 +60,8 @@
 
 import { readFileSync } from 'node:fs';
 import type { Page } from '@playwright/test';
-import { expect, test } from '../fixtures/app';
-import type { FixtureUser } from '../fixtures/users';
+import { expect, test } from '../fixtures/app.js';
+import type { FixtureUser } from '../fixtures/users.js';
 
 // ---------------------------------------------------------------------------
 // Accessible names (Romanian-primary, EN fallback). Legacy renders several of

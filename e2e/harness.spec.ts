@@ -1,4 +1,4 @@
-import { expect, test } from './fixtures/app';
+import { expect, test } from './fixtures/app.js';
 
 // Pending-quarantine mechanism (plan §4.2, "Red-by-design"). Specs target an
 // app that does not exist until M4/M5, so every not-yet-activated spec is

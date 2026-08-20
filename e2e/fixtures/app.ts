@@ -2,7 +2,7 @@
 // exactly. See e2e/fixtures/users.ts for the drift rule: the contract file is
 // the single source of truth for both these fixtures and the seed script.
 import { test as base } from '@playwright/test';
-import { type FixtureUsers, fixtureUsers } from './users';
+import { type FixtureUsers, fixtureUsers } from './users.js';
 
 /** The single multi-forum-hub tenant used by every journey. */
 export const fixtureForum = {
