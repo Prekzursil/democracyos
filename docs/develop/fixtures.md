@@ -98,6 +98,21 @@ omission, because legacy's tie handling is broken: the deeper-level tie-break ne
 past the last level and throws on `Object.keys(undefined)` (`utils.js:186-188`), failing the
 vote request.
 
+## Tags
+
+**Added 20.08.2026 (J4 derivation, WU-M1-5).** A tag is **mandatory** to create a topic
+(`legacy/lib/models/topic.js:54`), and the legacy admin form refuses to render at all when the
+forum has zero tags (`legacy/lib/admin/admin-topics-form/template.jade:4-13`). The contract
+previously defined no tag, so the topic fixtures could not have been seeded.
+
+| slug | name | purpose |
+|---|---|---|
+| `urbanism` | Urbanism | The default tag carried by every seeded topic. |
+| `transport` | Transport | A second tag, so tag CRUD and tag filtering (J9) have something to distinguish. |
+
+`transport` is the safe target for J9's tag-delete assertion precisely because no fixture
+topic references it — deleting the tag every topic depends on would cascade unpredictably.
+
 ## Comment tree
 
 **Corrected 20.08.2026** (J8 derivation, WU-M1-9). The previous version described a
