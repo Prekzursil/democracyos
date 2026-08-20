@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+# Canonical verification entrypoint (qzp Repository Contract; see AGENTS.md).
+#
+# Runs the local mirror of the lean 6-gate charter. Steps whose tool is part of
+# the repo's own toolchain (npm gates, charter check) are REQUIRED and fail the
+# run. Scanner gates (opengrep/gitleaks/osv-scanner) run when their binary is
+# available locally and otherwise print an explicit NOT-CHECKED line - a skip
+# is always visible, never silent. CI (the pinned reusable workflow) always
+# runs all six with pinned binaries; this script is the pre-commit-time mirror,
+# not the authority.
+set -uo pipefail
+
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+fail=0
+run() { # $1 label, rest = command
+  local label="$1"; shift
+  printf '\n== %s ==\n' "$label"
+  if "$@"; then
+    printf 'PASS %s\n' "$label"
+  else
+    printf 'FAIL %s (exit %s)\n' "$label" "$?"
+    fail=1
+  fi
+}
+
+run "gate 2 - typecheck (tsc --noEmit, all workspaces)" npm run typecheck
+run "gate 1a - lint (oxlint --deny-warnings)" npm run lint
+run "gate 1b - format (biome ci)" npm run format:check
+run "gate 3 - tests + coverage (vitest, 100% line+branch)" npm run test:coverage
+run "charter drift guard" bash .quality/charter_check.sh
+
+# ── Scanner gates: run when available, NOT-CHECKED when not ──────────────────
+if command -v gitleaks >/dev/null 2>&1; then
+  run "gate 5 - secrets (gitleaks, working tree + history)" \
+    gitleaks detect --no-banner --redact --config .gitleaks.toml
+else
+  printf '\nNOT-CHECKED gate 5 - gitleaks binary not on PATH (CI runs it pinned at 8.30.1).\n'
+fi
+
+if command -v opengrep >/dev/null 2>&1; then
+  run "gate 4 - SAST (opengrep, in-repo ruleset)" \
+    opengrep scan --config .quality/opengrep --error \
+    --exclude .venv --exclude node_modules --exclude dist --exclude out --exclude build .
+elif command -v semgrep >/dev/null 2>&1; then
+  run "gate 4 - SAST (semgrep, rule-compatible local stand-in for opengrep)" \
+    semgrep scan --quiet --config .quality/opengrep --error \
+    --exclude .venv --exclude node_modules --exclude dist --exclude out --exclude build .
+else
+  printf '\nNOT-CHECKED gate 4 - neither opengrep nor semgrep on PATH (CI runs opengrep pinned at 1.22.0).\n'
+fi
+
+if command -v osv-scanner >/dev/null 2>&1; then
+  # Exit 128 = "no package sources" (pass); exit 1 = findings. The CI gate adds
+  # a T0 severity floor on top; locally we report the raw result.
+  printf '\n== gate 6 - deps (osv-scanner) ==\n'
+  rc=0
+  osv-scanner scan source --config=osv-scanner.toml --recursive . || rc=$?
+  if [ "$rc" -eq 0 ] || [ "$rc" -eq 128 ]; then
+    printf 'PASS gate 6 - deps (exit %s)\n' "$rc"
+  else
+    printf 'REPORTED gate 6 - osv-scanner exit %s (CI applies the T0 floor: dev-only/unscored/unfixable findings are printed, not blocking).\n' "$rc"
+  fi
+else
+  printf '\nNOT-CHECKED gate 6 - osv-scanner binary not on PATH (CI runs it pinned at 2.3.8).\n'
+fi
+
+printf '\n'
+if [ "$fail" -ne 0 ]; then
+  printf 'FAILED: scripts/verify - at least one required gate failed.\n'
+  exit 1
+fi
+printf 'SUCCESS: scripts/verify - all required gates passed (see NOT-CHECKED lines, if any, above).\n'

@@ -67,8 +67,7 @@ gates:
     caller_config:
       - "osv-scanner.toml"
       - "package-lock.json"
-      # ".github/dependabot.yml" is appended to this list by WU-M2-5, in the
-      # same commit that creates the file (config + guard land atomically).
+      - ".github/dependabot.yml"
 
 # DELETED as gates (must NOT reappear in this repo as live config or CI).
 # charter_check.sh fails if any of these surfaces at the repo root or inside

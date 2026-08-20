@@ -1,0 +1,31 @@
+# Dependabot (CI gate 6's second half, plan WU-M2-5).
+#
+# npm at "/" only - this matches the qzp control-plane enrollment profile
+# (profiles/repos/democracyos.yml: dependabot.updates: [npm /], WU-M2-3).
+# The github-actions ecosystem is deliberately ABSENT: the only action ref in
+# this repo's quality lane is the reusable-quality.yml SHA pin, and Q10 assigns
+# those bumps to qzp's bump-workflow-shas wave (or a manual bump), not to
+# Dependabot. Renovate is charter-banned (deleted_gates).
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Bucharest"
+    # Group the routine noise; security updates always arrive individually and
+    # immediately regardless of schedule or grouping.
+    groups:
+      dev-minor-and-patch:
+        dependency-type: "development"
+        update-types: ["minor", "patch"]
+      prod-minor-and-patch:
+        dependency-type: "production"
+        update-types: ["minor", "patch"]
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "chore(deps)"
+    labels:
+      - "dependencies"
