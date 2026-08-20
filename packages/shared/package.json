@@ -1,0 +1,15 @@
+{
+  "name": "@dosrevival/shared",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Isomorphic midend (API contracts, config schema, validators, i18n helper, privileges). Placeholder until milestone M3b.",
+  "license": "GPL-3.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "name": "@dosrevival/monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Greenfield TypeScript rebuild of a civic-participation platform (hard fork of DemocracyOS, GPL-3.0). Temporary scope @dosrevival/* until the brand rename at WU-M2-6.",
+  "license": "GPL-3.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "test": "vitest run",
+    "test:coverage": "c8 vitest run",
+    "typecheck": "npm run typecheck --workspaces"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "c8": "^12.0.0",
+    "tsx": "^4.23.12",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.11"
+  }
+}
