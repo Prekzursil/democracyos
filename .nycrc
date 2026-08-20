@@ -1,0 +1,17 @@
+{
+  "all": true,
+  "check-coverage": true,
+  "lines": 100,
+  "branches": 100,
+  "functions": 100,
+  "statements": 100,
+  "include": ["__coverage-ratchet-empty-until-M3a__/**"],
+  "exclude": [
+    "legacy/**",
+    "e2e/**",
+    "**/*.d.ts",
+    "**/*.config.ts",
+    "**/prisma/migrations/**",
+    "**/generated/**"
+  ]
+}
