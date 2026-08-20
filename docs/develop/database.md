@@ -19,12 +19,20 @@ local daemon.
 2. Create `packages/server/.env` containing the same `DATABASE_URL` (the Prisma CLI
    reads it from there). Both files are gitignored — secrets never enter the repo
    (plan §8.8); `DATABASE_URL` is a secret.
-3. Path A: `docker compose --env-file .env.local -f docker-compose.dev.yml up -d db`,
-   wait for the healthcheck (`pg_isready`).
-4. Verify: `npx tsx scripts/db/check.ts` — prints the server version, fails loudly
-   below PostgreSQL 16, and reports which path is in use.
+3. Path A only: `docker compose --env-file .env.local -f docker-compose.dev.yml up -d db`,
+   wait for the healthcheck (`pg_isready`). Path B: skip — just point `DATABASE_URL`
+   at your instance.
+4. Generate the Prisma client **before anything imports it**: `npx prisma generate`
+   from `packages/server/`. This step is not optional on a fresh clone —
+   `scripts/db/check.ts` imports the generated client, which is gitignored, so
+   running the check first fails with `ERR_MODULE_NOT_FOUND` rather than a
+   connection error. (`prisma migrate dev` also generates, so step 5 covers it too;
+   this step exists so the *verify* step below never runs against nothing.)
 5. Migrations: `npx prisma migrate dev` from `packages/server/` (at M0 the schema is
-   datasource + generator only; the first real migrations land in M3a).
+   datasource + generator only, so this reports "already in sync"; the first real
+   migrations land in M3a).
+6. Verify: `npx tsx scripts/db/check.ts` from the repository root — prints the server
+   version, fails loudly below PostgreSQL 16, and reports which path is in use.
 
 ## Prisma 7 layout note
 

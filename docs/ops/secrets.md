@@ -4,6 +4,11 @@
 all refs (`gitleaks git --log-opts="--all"`), 5,702 commits / ~15.2 MB scanned, plus a
 manual sweep of the legacy config surface.
 
+> On the commit count: `git rev-list --all --count` reports **6,805**, while gitleaks
+> reports **5,702 scanned**. Both are correct — gitleaks counts the commits whose diffs it
+> actually scanned, deduplicating objects reachable from more than one ref. Recorded so a
+> reader re-running the scan is not misled into thinking history was partially skipped.
+
 ## Principle
 
 Any value that has ever been committed is treated as **public** and must be rotated.

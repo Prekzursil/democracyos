@@ -1,0 +1,18 @@
+# Line endings.
+#
+# Biome enforces `lineEnding: "lf"` (biome.json), but this repository is
+# developed on Windows where git's autocrlf would otherwise check files out as
+# CRLF and then report every formatted file as modified — permanent churn that
+# makes `git status` useless and `biome ci` non-deterministic between machines.
+#
+# Normalise everything to LF in the index and in the working tree.
+* text=auto eol=lf
+
+# The quarantined 2018 tree is a frozen historical reference (see legacy/README.md).
+# Excluding it from normalisation keeps its blobs byte-identical to upstream, so
+# `git diff` against the fork point stays meaningful and no mass-rewrite commit is
+# ever produced for code that is never executed.
+legacy/** -text
+
+# Generated / lock files: keep LF, never treat as text needing diffing noise.
+package-lock.json text eol=lf linguist-generated=true
