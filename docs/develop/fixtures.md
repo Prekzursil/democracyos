@@ -56,13 +56,30 @@ Voting methods per `legacy/lib/models/topic.js:73`.
 | slug | method | state | notes |
 |---|---|---|---|
 | `t-vote` | `vote` | open | yes/no/abstain (J5). |
-| `t-poll` | `poll` | open | multiple options (J6). |
-| `t-cause` | `cause` | open | support-style (J6). |
+| `t-poll` | `poll` | open | multiple options (J6). **Options are mandatory at creation** — see below. |
+| `t-cause` | `cause` | open | support-style endorsement (J6). Single implicit `support` value, no option set. |
+| `t-poll-closed` | `poll` | closed | **Added 20.08.2026 (J6 derivation).** Poll results render only when closed. Must be seeded **non-tied**: legacy marks every option whose percentage equals the maximum as the winner, so an all-zero or tied poll highlights all of them (`legacy/lib/site/.../poll/component.js:11-20`). The new implementation must define tie presentation deliberately, and this fixture must not accidentally assert the buggy behaviour. |
+| `t-cause-closed` | `cause` | closed | **Added 20.08.2026 (J6 derivation).** Carries at least one supporter who is **not** `elena-voter`, so the endorse/withdraw journey can act on a fresh state while the aggregate is non-zero. |
 | `t-slider` | `slider` | open | headline differentiator (J7). Range −100…+100, step 25 (nine buckets incl. neutral). |
 | `t-hierarchy` | `hierarchy` | open | headline differentiator (J7). **Options are mandatory at creation** — see below. |
 | `t-slider-closed` | `slider` | closed | **Added 20.08.2026 (J7 derivation).** Legacy renders the slider distribution only when the topic is closed, so an open topic alone cannot exercise the tally. Carries recorded votes across at least three distinct buckets, one of them neutral (`0`), because legacy's chart drops the neutral bucket and the new UI must not. |
 | `t-hierarchy-closed` | `hierarchy` | closed | **Added 20.08.2026 (J7 derivation).** Same reason: the consensus ranking is only rendered when closed. Carries a recorded ballot by `elena-voter` plus at least two more differing ballots, so the positional consensus has something to resolve. Ballots must **not** be a full tie — legacy crashes on one (see below); the new implementation must define and test tie behaviour deliberately. |
 | `t-closed-outcome` | `vote` | closed, outcome published | carries the mandatory outcome declaration (N11); asserted by J13 and the results journeys. |
+
+### `t-poll` option set
+
+Poll creation refuses a topic without options, exactly like hierarchy
+(`legacy/lib/db-api/topics/index.js:130-137`), so the seed cannot exist until they are
+named. Fixed at three distinct options:
+
+1. `Dimineața (08:00–12:00)`
+2. `După-amiaza (12:00–17:00)`
+3. `Seara (17:00–21:00)`
+
+A poll ballot is exactly **one** of these. Legacy accepts any string as a vote value
+(`legacy/lib/api-v2/topics/index.js:232-239`), which inflates the participant count while
+deflating every real option's percentage; the new schema constrains the value to the
+topic's own option set.
 
 ### `t-hierarchy` option set
 
