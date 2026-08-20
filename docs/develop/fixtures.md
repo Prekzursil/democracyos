@@ -80,7 +80,12 @@ the point is that the field is non-empty and rendered, not that the prose is rea
 | `t-cause-closed` | `Inițiativa a fost inclusă pe ordinea de zi a ședinței următoare.` |
 | `t-slider-closed` | `Rezultatul a fost publicat ca aviz consultativ; nu produce efecte juridice.` |
 | `t-hierarchy-closed` | `Ordinea de priorități rezultată a fost trimisă spre analiză bugetară.` |
-| `t-closed-outcome` | (already specified above — the canonical outcome-declaration fixture) |
+| `t-closed-outcome` | `Propunerea a fost adoptată cu majoritate de voturi; hotărârea de punere în aplicare se publică pe site-ul primăriei.` |
+
+> **Corrected 20.08.2026 (M3a-1 review, N9a):** the `t-closed-outcome` row previously said
+> "already specified above", but no declaration text appeared anywhere above — the canonical
+> outcome-declaration fixture was the only one *without* a pinned declaration. The Romanian text
+> above is now the pinned value; J13 and the results journeys assert against it.
 
 ### Per-topic voting-stage requirement
 
@@ -148,6 +153,32 @@ because no fixture topic references it, it is the only tag that *could* safely b
 > opposite — legacy exposes **no tag-delete control to any role**, and whether the new app
 > gains one is an open product decision. The contract must not presume an assertion the
 > spec deliberately refuses to make.
+
+## Consent records
+
+**Added 20.08.2026 (M3a-1 review, N9b).** Decision E2 makes explicit Art. 9 consent
+(`purpose = voting_opinions`) a precondition of the vote path, and the schema records it in
+`ConsentRecord` (data-model §2 M28). No fixture previously specified any consent row, so the
+moment the vote path enforces E2, every live-vote journey (J5–J7) and every seeded closed-topic
+vote would have been unseedable or refused. The seed therefore creates one **active** consent row
+per stage-2-or-higher account:
+
+| handle | purpose | policyVersion | withdrawnAt |
+|---|---|---|---|
+| `elena-voter` | `voting_opinions` | `fixture-v1` | — (active) |
+| `flavia-author` | `voting_opinions` | `fixture-v1` | — (active) |
+| `bogdan-collaborator` | `voting_opinions` | `fixture-v1` | — (active) |
+| `carmen-admin` | `voting_opinions` | `fixture-v1` | — (active) |
+| `dan-owner` | `voting_opinions` | `fixture-v1` | — (active) |
+
+`grantedAt` is the seed timestamp (it must not post-date any seeded `Vote.createdAt` for the same
+account). `ana-participant` gets **no** consent row: her negative case is the verification stage
+(stage 1 may not vote), and the stage refusal must fire before any consent check, so seeding her a
+consent would not change her journey — but a *separate* consent-refusal case (stage-2 account
+without consent) is created **in-journey** by the consent-flow spec, not seeded, so fixtures stay
+immutable. **Dependency, recorded:** J5–J7's happy paths assume these rows exist; if the seed
+lands before the vote path enforces E2, the rows are inert; once enforcement lands, they are
+load-bearing.
 
 ## Comment tree
 

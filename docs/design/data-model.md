@@ -1,8 +1,15 @@
 # Data-model design record — WU-M3a-1
 
-**Status:** DESIGN, awaiting adversarial review. Per plan §4.4, this document is reviewed and
-merged **before a single migration is written**. No `schema.prisma` change and no migration
+**Status:** DESIGN, corrected after adversarial review. Per plan §4.4, this document is reviewed
+and merged **before a single migration is written**. No `schema.prisma` change and no migration
 accompanies this commit.
+
+> **Corrected 20.08.2026 (M3a-1 adversarial review).** The review returned FAIL with two blocking
+> findings (B1 — erasure impossible for reacted comment authors; B2 — T4 blind to the empty
+> hierarchy ballot), both proven by execution in a scratch Postgres, plus eleven non-blocking
+> findings (N1–N11) and one OD-1 sharpening. Every correction below is marked inline with the
+> finding ID that caused it; both blocking fixes were re-verified in a scratch database before
+> this revision was written.
 
 **Inputs of record:** the revival plan §2.4 + §4.4 (`docs/plans/2026-08-18-democracyos-revival-plan.md`),
 the characterization record (`docs/CHARACTERIZATION.md` — defect IDs `DI-*`, `SEC-*`, `COR-*`, `CM-*`,
@@ -65,7 +72,7 @@ constraint details are expanded in §3–§5.
 | M18 | NEW: lifecycle + outcome declaration | C3/N11 (no legacy analogue; legacy "closed" is derived from `closingAt` — TL-8, `legacy/lib/models/topic.js:184-190`) | On Topic: `lifecycle lifecycle NOT NULL DEFAULT 'open'`, `outcomeDeclaration text NULL`, CHECK **C1** (§4). | See §4 C1 for the closing/declaration interaction and the TL-8 tension. |
 | M19 | NEW: per-consultation verification requirement | G-10; CHARACTERIZATION §7 row 7 / Q-17 | On Topic: `requiredStageToVote verification_stage NOT NULL DEFAULT 'stage2_phone'`. | Resolves the *modelling* half of Q-17 (which stage a consultation demands); which fixture topic gets which value is a contract decision (§12). |
 | M20 | `Vote` (`topic`, `author`, free-string `value`, `createdAt`; unique `(topic, author)`) | `legacy/lib/models/vote.js:5-10,16-17` | **`Vote`** table — the Art. 9 core, §8: `id uuid PK`, `topicId uuid NOT NULL FK`, `method voting_method NOT NULL` (composite-FK-pinned to the topic, §4 U7), **`voterPseudonym bytea NULL`** (NOT NULL while `status='active'` — §9), `status vote_status NOT NULL DEFAULT 'active'`, per-method payload columns `choice vote_choice NULL` / `sliderValue smallint NULL` / `pollOptionId uuid NULL`, `commitmentSalt bytea NULL` (§8.3), `createdAt`. **No `userId` column exists** (G-7). | DI-3 in full: the free string becomes per-method typed columns + CHECKs (§4 C2–C5). The `(topic, author)` unique index (`vote.js:16-17`) becomes the partial unique U14 on `(topicId, voterPseudonym)` — plan WU-M3a-5. |
-| M21 | Hierarchy ballots (legacy: CSV string in `Vote.value`, `legacy/lib/api-v2/db-api/topics/utils.js:48-50`) | VO-12/VO-13; DI-3 | **`VoteRanking`** table: `voteId FK`, `topicId`, `optionId FK`, `rank int`, `@@unique([voteId, rank])`, `@@unique([voteId, optionId])`, + deferred permutation trigger (§4 T4). | A full permutation of the option set — every option exactly once — becomes rows, not a parsable string. Partial rankings, duplicates and unknown options (all storable in legacy) become constraint violations. |
+| M21 | Hierarchy ballots (legacy: CSV string in `Vote.value`, `legacy/lib/api-v2/db-api/topics/utils.js:48-50`) | VO-12/VO-13; DI-3 | **`VoteRanking`** table: `voteId FK`, `topicId`, `optionId FK`, `rank int`, `@@unique([voteId, rank])`, `@@unique([voteId, optionId])`, + deferred permutation triggers on both child and parent (§4 T4/T4b — **corrected 20.08.2026, M3a-1 review, B2**: the child-side trigger alone cannot see a zero-ranking ballot). | A full permutation of the option set — every option exactly once — becomes rows, not a parsable string. Partial rankings, duplicates and unknown options (all storable in legacy) become constraint violations. |
 | M22 | `Comment` core (`author`, `text`, `context`/`reference`, `topicId`, dates) | `legacy/lib/models/comment.js:70-86` | **`Comment`** table: `id uuid PK`, `topicId uuid NOT NULL FK` (**indexed** — COR-20: legacy's `topicId` has no index and api-v2 never sets it, `comment.js:80,88-90`), `authorId uuid NULL FK`, `parentId uuid NULL self-FK` (one level — CM-4, trigger T3), `text` CHECK non-empty + `char_length ≤ 4096` (CM-3, `comment.js:42-53`), `editedAt` (CM-8), timestamps. | The `reference: Mixed` + `context` enum pair (`comment.js:75-77`) existed for five contexts; the characterized product has one (CM-2: context `topic`). `reference` collapses into the typed `topicId` FK — a `Mixed` field that must NOT become a blob, and doesn't. Clause-level side comments are cut; if ever revived, `clauseId uuid NULL FK` is an additive migration. |
 | M23 | `Comment.replies[]` (embedded `CommentReplySchema`) | `legacy/lib/models/comment.js:35-40,73` | Same `Comment` table via `parentId` (self-FK). Depth limited to one level by trigger T3 (CM-4). | Embedded flat array → self-referential rows; `repliesCount` virtual (`comment.js:128-130`) becomes a COUNT. |
 | M24 | `Comment.votes[]` + `score`, `Comment.flags[]` (embedded, unbounded) | `legacy/lib/models/comment.js:10-14,20-24,81-83` | **`CommentVote`** (`commentId`, `userId`, `commentAuthorId`, `value comment_vote_value`, `@@unique([commentId,userId])`) and **`CommentFlag`** (same shape, `value comment_flag_value`). `score` is **derived** — §7.3. | DI-6 (16 MB growth + full arrays on every list read) and DI-5 (score drift) die together. The self-vote/self-flag bans (CM-5/CM-6) become **structural** via the composite-FK trick — §4 U18/C6. |
@@ -100,7 +107,7 @@ type safety.
 | E5 | `voting_method` | `vote`, `poll`, `cause`, `slider`, `hierarchy` | `legacy/lib/models/topic.js:73` **minus** the `''` member. Legacy's "no action" empty string becomes `Topic.votingMethod IS NULL`; whether "no method" survives as NULL or is subsumed by `content_type = 'debate'` is open Q-7 (C4) — **the schema supports both**, so Q-7's resolution costs no migration. |
 | E6 | `content_type` | `debate`, `proposal`, `poll` | Decision C4 / plan WU-M3b-9. No legacy analogue. |
 | E7 | `lifecycle` | `open`, `closed`, `outcome_published` | Decision C3/N11 / plan WU-M3b-9. Legacy's closed state is derived (TL-8); see CHECK C1 for how the two coexist. |
-| E8 | `vote_choice` | `positive`, `neutral`, `negative` | Method `vote`'s exact option set (VO-2; server seed at `legacy/lib/api-v2/db-api/topics/index.js:138-140` per spec). In legacy this was a **free string** (`legacy/lib/models/vote.js:8`) — the root of DI-3. |
+| E8 | `vote_choice` | `positive`, `neutral`, `negative` | Method `vote`'s exact option set (VO-2; server seed at `legacy/lib/api-v2/db-api/topics/index.js:122-128` per spec — **corrected 20.08.2026 (M3a-1 review, N10)**: the previously cited `:138-140` are the *cause* seed lines, which remain correctly cited for VO-8 below). In legacy this was a **free string** (`legacy/lib/models/vote.js:8`) — the root of DI-3. |
 | E9 | `comment_vote_value` | `positive`, `negative` | Verbatim `legacy/lib/models/comment.js:12` (CM-5). |
 | E10 | `comment_flag_value` | `spam` | Verbatim `legacy/lib/models/comment.js:22` (CM-6). Single-member on purpose: adding flag reasons later is additive. |
 | E11 | `notification_type` | `reply`, `upvote`, `downvote` | Verbatim `legacy/lib/models/notification.js:15` (plan WU-M3a-7). |
@@ -158,8 +165,8 @@ the row's existence, which is exactly the endorse/withdraw semantic (P-4).
 | C3 | On Vote: `CHECK (method <> 'slider' OR (sliderValue IS NOT NULL AND sliderValue BETWEEN -100 AND 100 AND sliderValue % 25 = 0 AND choice IS NULL AND pollOptionId IS NULL))` | DI-3 (slider): the `'42'` off-bucket value that inflated `action.count` and deflated every percentage is a constraint violation. Nine buckets exactly (VO-10). |
 | C4 | On Vote: `CHECK (method <> 'cause' OR (choice IS NULL AND sliderValue IS NULL AND pollOptionId IS NULL))` | Cause carries no payload — endorsement is the row (VO-8, P-4). Nothing off-value is storable because there is no value. |
 | C5 | On Vote: `CHECK (method <> 'poll' OR (pollOptionId IS NOT NULL AND choice IS NULL AND sliderValue IS NULL))` + composite FK via U11; `CHECK (method <> 'hierarchy' OR (choice IS NULL AND sliderValue IS NULL AND pollOptionId IS NULL))` (payload in `VoteRanking`) | DI-3 (poll + hierarchy halves). |
-| C6 | On CommentVote/CommentFlag: `FOREIGN KEY (commentId, commentAuthorId) REFERENCES Comment(id, authorId)` (via U18) + `CHECK (userId <> commentAuthorId)` | **CM-5/CM-6 self-vote and self-flag become structurally impossible** — legacy refused them in code (`legacy/lib/api-v2/db-api/comments/index.js:97-121,372-379`); here the row cannot exist. (COR-9's wrong HTTP status is an API concern that now can't even arise from a race.) Note: `Comment.authorId` is nullable after erasure (§5); the composite FK uses `MATCH SIMPLE` semantics so reaction rows on anonymized comments remain valid, and new votes on them are permitted — acceptable, since the self-vote ban protects a living author. |
-| C7 | On Vote: `CHECK (status <> 'active' OR voterPseudonym IS NOT NULL)` and `CHECK (status <> 'active' OR commitmentSalt IS NOT NULL)` | §9: an active vote is always attributable-via-pseudonym and always commitment-openable; only non-active rows may be severed. |
+| C6 | On CommentVote/CommentFlag: `FOREIGN KEY (commentId, commentAuthorId) REFERENCES Comment(id, authorId) ON UPDATE CASCADE` (via U18) + `CHECK (userId <> commentAuthorId)` | **CM-5/CM-6 self-vote and self-flag become structurally impossible** — legacy refused them in code (`legacy/lib/api-v2/db-api/comments/index.js:97-121,372-379`); here the row cannot exist. (COR-9's wrong HTTP status is an API concern that now can't even arise from a race.) **Corrected 20.08.2026 (M3a-1 review, B1):** the first version of this row had no `ON UPDATE` action and mis-attributed the erasure exemption to `MATCH SIMPLE`. `MATCH SIMPLE` only excuses a *referencing row that already contains a NULL* — at erasure time the reaction row still holds the author's uuid, so F16's `SET NULL` on `Comment.authorId` failed the RI check and `DELETE FROM "User"` was **impossible for any comment author with reactions** (proven by execution: `violates foreign key constraint "CommentVote_commentId_commentAuthorId_fkey"`). With `ON UPDATE CASCADE` on this FK **and on `CommentFlag`'s twin**, F16's SET NULL cascades `commentAuthorId → NULL`, `MATCH SIMPLE` then exempts the row, and the CHECK passes as NULL. Reaction rows on anonymized comments survive, and new votes on them are permitted — acceptable, since the self-vote ban protects a living author. Verified in scratch: erase a reacted author → DELETE succeeds, reactions survive with NULL author, a new vote on the anonymized comment inserts. This case is on the WU-M6-14 erasure test list (§5). |
+| C7 | On Vote: `CHECK (status <> 'active' OR voterPseudonym IS NOT NULL)` and `CHECK (status <> 'active' OR commitmentSalt IS NOT NULL)` | §9: an active vote is always attributable-via-pseudonym; only non-active rows may be severed. **Corrected 20.08.2026 (M3a-1 review, N2):** "always commitment-openable" is true **only of the latest event**. The salt lifecycle is one salt per *event* (§8.3): a re-vote generates a fresh `salt128` for its `vote_replaced` commitment and overwrites `commitmentSalt`, so every earlier commitment for that ballot becomes permanently unopenable at that moment — intended, because it advances erasure with each re-vote and the audit story only ever needs to open the *current* state. |
 | C8 | On Forum: `CHECK (name ~ '^[a-z0-9]([a-z0-9-]{0,78}[a-z0-9])?$')` and `CHECK (name <> ALL (ARRAY['admin','dashboard','forum','forums','login','logout','mine','profiles','register','settings','signin','signout','signup','status','topic','topics','user','users']))` — **raw SQL** | FR-4 format: legacy's `/^([a-zA-Z0-9]{1,2}|[a-zA-Z0-9][a-zA-Z0-9-]{1,78}[a-zA-Z0-9])$/i` (`legacy/lib/regexps/index.js:14-17`) accepts the same string set as this CHECK once input is lowercased, which storage already guarantees (`legacy/lib/models/forum/index.js:39` lowercases; the new API normalizes likewise) — 1–80 chars, alphanumeric or `-`, no edge hyphens. Reserved names verbatim from `legacy/lib/models/forum/reserved-names.js:5-24`. The friendly *naming* of the error (COR-13) stays an API concern; the constraint is the backstop. |
 | C9 | On Forum: `CHECK (char_length(summary) <= 300)`; `CHECK ("deletedAt" IS NOT NULL OR "ownerId" IS NOT NULL)` | First: COR-12 — 300 **inclusive**, honouring the UI contract. Second: a *live* forum always has an owner, while erasure may orphan a *deleted* one (§5 F3). |
 | C10 | On Comment: `CHECK (btrim(text) <> '' AND char_length(text) <= 4096)` | CM-3 (`legacy/lib/models/comment.js:42-53`). Line-break collapsing (3+ → 2) is write-normalization in the API, recorded here so no one "fixes" it into the DB. |
@@ -171,13 +178,18 @@ the row's existence, which is exactly the endorse/withdraw semantic (P-4).
 |---|---|---|
 | T1 | `audit_entry_immutable`: `BEFORE UPDATE OR DELETE ON "AuditEntry" … RAISE` + `REVOKE UPDATE, DELETE ON "AuditEntry" FROM app_runtime, app_readonly` | D3 append-only (plan WU-M3a-9). Belt (trigger) and braces (grant). |
 | T2 | `forum_permission_not_owner`: `BEFORE INSERT OR UPDATE ON "ForumPermission"` — reject when `userId = (SELECT ownerId FROM "Forum" WHERE id = NEW.forumId)` | FR-8's `FORUM_OWNER_CANT_HAVE_ANOTHER_ROLE` (`legacy/lib/models/forum/index.js:157-162`), cross-table so not a CHECK. |
-| T3 | `comment_depth_one`: `BEFORE INSERT OR UPDATE ON "Comment"` — reject when `NEW.parentId` refers to a row whose own `parentId IS NOT NULL` | CM-4: threading is exactly one level (`legacy/lib/models/comment.js:35-40`). A reply can never have children. |
-| T4 | `vote_ranking_permutation`: `CONSTRAINT TRIGGER … DEFERRABLE INITIALLY DEFERRED` on `VoteRanking` — at commit, for each touched `voteId`, assert the set of `optionId`s equals the topic's full `TopicOption` set and ranks are exactly `1..n` | DI-3 hierarchy: a ballot is a **full permutation** (VO-12); partial ballots become commit failures, not skewed `countByPosition` inputs. Deferred, because the rows arrive one-by-one inside the vote transaction. |
+| T3 | `comment_depth_one`: `BEFORE INSERT ON "Comment"` — reject when `NEW.parentId` refers to a row whose own `parentId IS NOT NULL`; `BEFORE UPDATE` — reject **any** change to `parentId` (`NEW.parentId IS DISTINCT FROM OLD.parentId`) | CM-4: threading is exactly one level (`legacy/lib/models/comment.js:35-40`). A reply can never have children. **Corrected 20.08.2026 (M3a-1 review, N6):** the first version checked only that the *new parent* is a root, so re-parenting a comment that already had replies could create depth 2. No characterized flow moves a comment between parents, so the simplest closure is to freeze `parentId` after insert. |
+| T4 | `vote_ranking_permutation`: `CONSTRAINT TRIGGER … AFTER INSERT OR UPDATE OR DELETE … DEFERRABLE INITIALLY DEFERRED` on `VoteRanking` — at commit, for each touched `voteId` whose `Vote` row still exists, assert the set of `optionId`s equals the topic's full `TopicOption` set and ranks are exactly `1..n` (a `voteId` whose Vote was deleted in the same transaction is skipped — the cascade path) | DI-3 hierarchy: a ballot is a **full permutation** (VO-12); partial ballots become commit failures, not skewed `countByPosition` inputs. Deferred, because the rows arrive one-by-one inside the vote transaction. **Corrected 20.08.2026 (M3a-1 review, B2):** now also fires on DELETE, so a partial-*by-deletion* ballot (rankings removed without the Vote row being replaced) fails at commit too; verified in scratch that ballot deletion via the `Vote` cascade (F12) still commits cleanly. |
+| T4b | `vote_hierarchy_ballot_present`: companion `CONSTRAINT TRIGGER … AFTER INSERT OR UPDATE ON "Vote" … DEFERRABLE INITIALLY DEFERRED` — when `NEW.method = 'hierarchy'`, run the same full-permutation check for `NEW.id` at commit | **Added 20.08.2026 (M3a-1 review, B2).** T4 alone cannot see the *empty* ballot: a trigger on the child table never fires when **zero** child rows are written, so a hierarchy `Vote` with no rankings committed — the limiting case of DI-3's partial ballot (inflates the participant count, contributes nothing to the tally), disproving §14's original unqualified DI-3 claim. Proven in scratch (zero-ranking vote committed under T4 alone); with T4b it fails at COMMIT (`not a full permutation (0 rankings, 3 options)`) while a full permutation still passes. Zero-row case added to the M3a DoD test list (§13). |
 | T5 | `audit_entry_chain`: `BEFORE INSERT ON "AuditEntry"` — assert `NEW.prevHash` = the `hash` of the current maximum `seq` (advisory-locked), recompute and assert `NEW.hash` | §8.3 — the chain link is verified *in the database*, so even a buggy writer cannot fork or skip. |
-| T6 | `topic_method_frozen`: `BEFORE UPDATE ON "Topic"` — reject changes to `votingMethod` when an active `Vote` for the topic exists; `BEFORE UPDATE OR DELETE ON "TopicOption"` — reject when the topic has any vote | TL-3 (method/options frozen once voting starts, `legacy/lib/api-v2/middlewares/topics.js:100-108` per spec) becomes structural instead of a middleware courtesy; also protects VoteRanking/pollOption referential meaning. CR-2's hanging edit-guard is thereby unreachable, though its user-visible fix (a real validation error) stays in the API. |
+| T6 | `topic_method_frozen`: `BEFORE UPDATE ON "Topic"` — reject changes to `votingMethod` when an active `Vote` for the topic exists; `BEFORE UPDATE OR DELETE ON "TopicOption"` — **first `SELECT … FOR UPDATE` the parent `Topic` row**, then reject when the topic has any vote | TL-3 (method/options frozen once voting starts, `legacy/lib/api-v2/middlewares/topics.js:100-108` per spec) becomes structural instead of a middleware courtesy; also protects VoteRanking/pollOption referential meaning. CR-2's hanging edit-guard is thereby unreachable, though its user-visible fix (a real validation error) stays in the API. **Corrected 20.08.2026 (M3a-1 review, N5):** a row trigger's snapshot cannot see a topic's *first* vote racing an edit/delete of a still-unreferenced option, so the first version had a residual race. The `FOR UPDATE` on the Topic row closes it structurally: every `Vote` insert already holds `FOR KEY SHARE` on that same row until commit (the composite FK `Vote(topicId, method) → Topic(id, votingMethod)`, U7), and `FOR UPDATE` conflicts with `FOR KEY SHARE` — so the option-edit transaction blocks behind any in-flight vote and its existence check then runs against a fresh snapshot that sees the committed vote. Chosen over "accept the race and demote TL-3 in §14" because the lock costs one row lock on a rare admin operation and keeps TL-3 genuinely structural. |
 
-Prisma cannot express partial indexes, CHECKs of this kind, constraint triggers, `citext`, or
-composite FKs onto non-PK uniques — all of the above are **raw-SQL migrations** (§13).
+Prisma cannot express partial indexes, CHECKs of this kind, constraint triggers, or `citext` —
+those are **raw-SQL migrations** (§13). **Corrected 20.08.2026 (M3a-1 review, N10):** composite FKs
+onto composite `@@unique` targets Prisma *can* express; keeping them raw is a **preference**, not a
+limitation — each composite FK ships in the same raw migration as the CHECK it cooperates with
+(C6's self-vote ban, C5's option-of-own-topic rule), so the pair is reviewed and versioned as one
+unit.
 
 ### 4.4 Plain (non-unique) indexes for the queries the journeys actually make
 
@@ -220,7 +232,7 @@ touching the audit table, and every survival/deletion choice below is deliberate
 | F13 | `VoteRanking (topicId, optionId) → TopicOption` | **RESTRICT** | An option with recorded rankings can never vanish (TL-3, T6 — belt and braces). |
 | F14 | `TallyCounter.topicId → Topic` | **CASCADE** | Derived data; recomputable from votes (§7 invariant). |
 | F15 | `Comment.topicId → Topic` | **CASCADE** | Comments are topic-bound discussion content; a deliberate topic hard-purge removes the thread. GDPR: comment *authorship* is handled by F16, not by this edge. |
-| F16 | `Comment.authorId → User` | **SET NULL** (nullable) | Same reasoning as F6: the discussion thread survives (other people's replies depend on it — CM-9's `HAS_REPLIES` shows even legacy protected thread integrity); the identity edge dies. **Whether erasure additionally deletes/redacts the *text* of authored comments is a genuinely open product/DPIA question** — the schema supports both (delete rows vs keep anonymized); flagged in §15. |
+| F16 | `Comment.authorId → User` | **SET NULL** (nullable) | Same reasoning as F6: the discussion thread survives (other people's replies depend on it — CM-9's `HAS_REPLIES` shows even legacy protected thread integrity); the identity edge dies. **Corrected 20.08.2026 (M3a-1 review, B1):** this SET NULL is executable *only because* C6's composite FKs on `CommentVote`/`CommentFlag` now carry `ON UPDATE CASCADE` — without it, any reaction row referencing `(commentId, authorId)` made the anonymizing UPDATE an RI violation and blocked the whole `DELETE FROM "User"`. **Whether erasure additionally deletes/redacts the *text* of authored comments is a genuinely open product/DPIA question** — the schema supports both (delete rows vs keep anonymized); flagged in §15. |
 | F17 | `Comment.parentId → Comment` | **CASCADE** | Legacy delete is hard and takes embedded replies with it (CM-9); replies die with their root. |
 | F18 | `CommentVote.userId → User`, `CommentFlag.userId → User` | **CASCADE** | An up/down/flag is the user's own expressed reaction — their personal data, gone on erasure. Because `score` is **derived** (§7.3), the cascade cannot cause DI-5-style drift: the score is recomputed truth by definition. |
 | F19 | `CommentVote.commentId → Comment`, `CommentFlag.commentId → Comment` | **CASCADE** | Reactions die with their target. |
@@ -230,10 +242,16 @@ touching the audit table, and every survival/deletion choice below is deliberate
 | F23 | `TopicAttrValue`, others above | — | (covered by F9). |
 
 **The erasure transaction, in FK terms:** soft-delete live owned forums (or refuse — C9b decides
-nothing silently) → per-consultation vote handling per OD-1 (§9) → `DELETE FROM "User"` → cascades
-fire F1/F2/F4/F18/F20, SET NULLs fire F3/F5/F6/F16 → append one `erasure_executed` audit event
-(commitment only). A test proves both halves: the identity is gone; the aggregates and the chain
-verify (plan WU-M6-14).
+nothing silently) → per-consultation vote handling per OD-1 (§9) →
+`DELETE FROM "Whitelist" WHERE email = <the user's email>` (**added 20.08.2026, M3a-1 review, N8**:
+a whitelisted address is personal data with **no FK to `User`**, so no cascade reaches it — the
+transaction must delete it explicitly) → `DELETE FROM "User"` → cascades fire F1/F2/F4/F18/F20,
+SET NULLs fire F3/F5/F6/F16 (F16's UPDATE in turn cascades `commentAuthorId → NULL` through C6's
+`ON UPDATE CASCADE` — B1) → append one `erasure_executed` audit event (commitment only). Tests
+prove both halves (plan WU-M6-14): the identity is gone; the aggregates and the chain verify —
+**and specifically (added 20.08.2026, M3a-1 review, B1): erasing a comment author whose comments
+carry reactions succeeds, the reaction rows survive with `commentAuthorId IS NULL`, and a new vote
+on the anonymized comment is still accepted.**
 
 ---
 
@@ -337,7 +355,11 @@ AuditEntry (
   seq        bigint  GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   kind       audit_event_kind NOT NULL,
   payload    jsonb   NOT NULL,           -- §6 discipline: commitments + uuids only
-  prevHash   bytea   NOT NULL,           -- hash of seq-1; 32 zero bytes at genesis
+  prevHash   bytea   NOT NULL,           -- hash of the current chain head (max seq at insert);
+                                         --   NOT "seq-1": identity columns leave gaps on rollback,
+                                         --   so the walk follows links, never consecutive seq
+                                         --   (corrected 20.08.2026, M3a-1 review, N7).
+                                         --   32 zero bytes at genesis.
   hash       bytea   NOT NULL UNIQUE,    -- sha256(seq ‖ kind ‖ canonical(payload) ‖ createdAt ‖ prevHash)
   createdAt  timestamptz NOT NULL DEFAULT now()
 )
@@ -350,17 +372,47 @@ AuditEntry (
   (`commitmentSalt`, C7). The chain therefore *proves* an event happened without *containing* the
   opinion or the pseudonym. This is the single design move that lets OD-1's deletion option
   coexist with D3 (§9).
+- **Salt lifecycle — one salt per event (added 20.08.2026, M3a-1 review, N2):** each
+  `vote_cast`/`vote_replaced` event draws a fresh `salt128` for its commitment, and the `Vote` row
+  stores **only the latest** (`commitmentSalt` is overwritten on re-vote). Consequence, chosen
+  deliberately: once a re-vote lands, every earlier commitment for that ballot is permanently
+  unopenable — erasure of the superseded opinion happens *as a side effect of re-voting*, and only
+  the current state ever needs opening. C7's wording is adjusted to match ("openable" = the latest
+  event only).
+- **Crypto-shred honesty — backups and WAL (added 20.08.2026, M3a-1 review, N1):**
+  `commitmentSalt` lives **in the same database** as the chain, so every backup and WAL archive
+  taken while a salt (and the raw `Vote` row) existed retains both until backup/WAL retention
+  lapses. "Crypto-shredding" and OD-1 option A's "the personal data is gone" are therefore true of
+  the **live** database only; the honest full claim is "gone from live immediately, gone from
+  backups when retention expires". Retention periods are **OD-2** (OPEN) — its resolution must
+  cover backup/WAL windows, and this residual goes on the DPIA hand-off list (E3, §15 O13).
+- **Differencing residual (added 20.08.2026, M3a-1 review, N3):** live public `TallyCounter`
+  reads combined with per-second public `AuditEntry` timestamps let an observer at low
+  participation *difference* two tally reads bracketing an event timestamp and infer a single
+  voter's choice; separately, a DB insider can correlate `ConsentRecord.grantedAt` ≈ first
+  `Vote.createdAt`. Inherent to any live consultative tally (legacy had the same property with
+  weaker controls); recorded for the DPIA (E3, §15 O12) with candidate mitigations: coarsen
+  publicly-exposed `AuditEntry` timestamps (e.g. minute granularity), delay/batch public aggregate
+  refresh at low participation.
 - **Enforcement:** T1 (UPDATE/DELETE rejected + revoked), T5 (`prevHash`/`hash` verified in a
   `BEFORE INSERT` trigger under an advisory lock — a buggy or malicious writer cannot fork, skip
   or splice).
 - **What "tamper-evident" concretely means here:** at consultation close, the head `hash` is
   published (WU-M6-8: public verification endpoint + UI affordance). From then on, *any*
   modification, deletion, insertion or reordering of entries up to that head is detectable by any
-  third party re-running the hash walk — including by the operator's future self. It does **not**
-  mean tamper-*proof*: a superuser can rewrite the table, but cannot rewrite the copies of the
-  published head. Trust anchor = publication, verification = recomputation; that is the honest
-  consultation-grade claim of G-7 ("consultative, not a binding secret ballot"), not a ballot
-  system.
+  third party re-running the hash walk (following `prevHash` links, never assuming consecutive
+  `seq` — N7) — including by the operator's future self. It does **not** mean tamper-*proof*: a
+  superuser can rewrite the table, but cannot rewrite the copies of the published head. Trust
+  anchor = publication, verification = recomputation; that is the honest consultation-grade claim
+  of G-7 ("consultative, not a binding secret ballot"), not a ballot system.
+- **Verifier requirement — event arithmetic, not just the walk (added 20.08.2026, M3a-1 review,
+  OD-1 sharpening, adopted from the reviewer):** for the chain to actually *constrain* a published
+  tally, the WU-M6-8 verifier MUST also check **event arithmetic** per consultation: the published
+  participant total must equal `count(vote_cast) − count(vote_withdrawn)` over that consultation's
+  chained events (`vote_replaced` changes a ballot, never the participant count; a re-vote after a
+  withdrawal is a new `vote_cast`). A hash walk alone proves the event *sequence* is intact — it
+  does not prove the published number is consistent with the events, which is the claim the public
+  actually cares about. This is a hard requirement handed to WU-M6-8, alongside the walk.
 - **Aggregate-only public reads:** no API scope ever exposes a `Vote` row or a pseudonym; public
   read surfaces are `TallyCounter`, computed rankings, and `AuditEntry` (which by construction
   contains only commitments). Legacy's weaker analogue (P-14: only own `voted`, aggregates
@@ -389,7 +441,7 @@ a recommendation for the owner.
 | Option | Mechanics at withdrawal | Effect on the hash chain | Effect on published tallies | Trade-offs |
 |---|---|---|---|---|
 | **A — delete** | In one transaction: `DELETE` the `Vote` row (cascades `VoteRanking`, F12) **including `commitmentSalt`**, decrement counters, append `vote_withdrawn` (commitment-only). | **Chain intact.** No entry is touched; hashes verify unchanged. The prior `vote_cast` commitment becomes permanently unopenable — without the 128-bit salt it is not brute-forceable even over a tiny choice space. This is crypto-shredding: the chain says "a vote happened and was withdrawn", nothing more. | Open topic: live tally shrinks (correct). Closed/published topic: the published aggregate is an **anonymous statistic** — Art. 17 reaches the personal data (the row), not the number; the snapshot stands as history, with a chained `tally_corrected` event only if the operator chooses to republish. | Cleanest erasure (E2/E3): nothing personal remains. Cost: the platform can no longer *re-derive* a closed tally from rows (recount ≠ snapshot after withdrawals) — the audit chain, not recount, is the integrity story for closed consultations. |
-| **B — anonymize** | Set `voterPseudonym = NULL`, delete `commitmentSalt`, keep the payload row `active` (or a new status — additive enum value). | Chain intact (never touched). Commitment unopenable, as in A. | **None** — the opinion still counts, unattributed. | Tally stability is maximal. But with `K_c` alive, "pseudonymous" data was linkable until this moment, and the *retained opinion* was collected under a consent that is now withdrawn — processing it further leans on a basis the DPIA would have to construct (Art. 9 has no "anonymized enough" comfort here; whether an unlinkable ballot is still personal data is exactly the argument counsel must own — OD-8). Re-vote after re-consent needs care: the NULL-pseudonym row still counts, so a re-vote double-counts unless the flow also flips it out — semantics get muddy. |
+| **B — anonymize** | Set `voterPseudonym = NULL`, delete `commitmentSalt`, move the row to a **new status value** (additive enum member, e.g. `anonymized`). **Corrected 20.08.2026 (M3a-1 review, N11):** the previously listed "keep the row `active` with NULL pseudonym" variant is **forbidden by C7** (`status <> 'active' OR voterPseudonym IS NOT NULL`) — only the new-status variant is implementable. That dependency cuts deeper than DDL: §7's tally invariant counts `status='active'` rows only, so for the anonymized opinion to keep counting, the invariant's semantics must change (count `active` **plus** `anonymized`) — a semantic migration of the tally contract, not just an enum addition. | Chain intact (never touched). Commitment unopenable, as in A. | **None** — the opinion still counts, unattributed (given the §7 semantic change above). | Tally stability is maximal. But with `K_c` alive, "pseudonymous" data was linkable until this moment, and the *retained opinion* was collected under a consent that is now withdrawn — processing it further leans on a basis the DPIA would have to construct (Art. 9 has no "anonymized enough" comfort here; whether an unlinkable ballot is still personal data is exactly the argument counsel must own — OD-8). Re-vote after re-consent needs care: the NULL-pseudonym row still counts, so a re-vote double-counts unless the flow also flips it out — semantics get muddy. |
 | **C — retain-but-exclude** | Set `status='withdrawn'`, keep pseudonym+salt (or shred salt too — sub-choice), decrement counters, append `vote_withdrawn`. | Chain intact; additionally the *row-level* history remains internally reconstructible (strongest auditability). | Same as A: active-only tallies shrink; closed snapshots stand. | Strongest audit posture, **weakest erasure**: an Art. 9 opinion, still linkable to the person while `K_c` exists, is retained against an explicit withdrawal — the hardest option to defend in the DPIA (E3). Partial U14 already permits a later re-consented re-vote. |
 
 **What deleting a row does NOT do in this design:** break the chain. That fear is real only if
@@ -523,7 +575,7 @@ already agree with this order; the conflict is with the brief's list, not the pl
 | 1 | `..._identity` (WU-M3a-2) | enums E1/E2/E12/E16; `User`, `Session`, `Token`, `VerificationEvent`, `ConsentRecord`, `Whitelist`; U1/U2/U21/U23/U25 | Prisma, **except** U23 partial unique + `citext` column types (raw) |
 | 2 | `..._forums` (WU-M3a-3) | enums E3/E4/E13; `Forum`, `ForumPermission`, `ForumTopicAttr`, `ForumTopicAttrOption`; U3/U4/U13; C8/C9; T2 | Prisma models; U3 partial index, C8/C9 CHECKs, T2 trigger = **raw** |
 | 3 | `..._topics` (WU-M3a-4; includes tags) | enums E5/E6/E7/E14; `Tag`, `Topic`, `Clause`, `TopicLink`, `TopicOption`, `TopicAttrValue`; U5–U13; C1; §4.4 indexes | Prisma; C1 CHECK + U7/U11 composite-unique FK targets = **raw** |
-| 4 | `..._votes_audit` (WU-M3a-5 + WU-M3a-9) | enums E8/E15/E17; `Vote`, `VoteRanking`, `TallyCounter`, `ConsultationKeyRef`, `AuditEntry`; U14–U17/U22/U24; C2–C5/C7/C11; T1/T4/T5/T6 | Prisma models; **everything that matters is raw**: partial unique U14, all per-method CHECKs, composite FKs, append-only + chain triggers, permutation trigger, freeze trigger. Votes and audit land together deliberately — a vote table without its audit substrate would invite unchained writes. |
+| 4 | `..._votes_audit` (WU-M3a-5 + WU-M3a-9) | enums E8/E15/E17; `Vote`, `VoteRanking`, `TallyCounter`, `ConsultationKeyRef`, `AuditEntry`; U14–U17/U22/U24; C2–C5/C7/C11; T1/T4/**T4b**/T5/T6 | Prisma models; **everything that matters is raw**: partial unique U14, all per-method CHECKs, composite FKs, append-only + chain triggers, permutation triggers (child **and parent** — B2), freeze trigger. Votes and audit land together deliberately — a vote table without its audit substrate would invite unchained writes. |
 | 5 | `..._comments` (WU-M3a-6) | enums E9/E10; `Comment`, `CommentVote`, `CommentFlag`; U18–U20; C6/C10; T3; `comment_score` view | Prisma; composite FK + CHECK C6, depth trigger T3, view = **raw** |
 | 6 | `..._notifications` (WU-M3a-7) | enum E11; `Notification`; F20 edges | Prisma throughout |
 | 7 | `..._rls` (WU-M3a-8) | roles `app_migrator`/`app_runtime`/`app_readonly`; `ENABLE/FORCE ROW LEVEL SECURITY`; policies of §10; REVOKEs of T1 | **raw, entirely**; shipped with the five Q14 proof-tests or treated as absent |
@@ -532,22 +584,34 @@ Discipline (WU-M3a-11): forward-only; one migration per WU; never edit an applie
 expand→migrate→contract for anything destructive; `prisma migrate diff` drift check in CI. Every
 constraint above ships with a test that proves it **fires** (plan M3a DoD: duplicate email
 rejected, duplicate vote rejected, out-of-enum rejected, forum-name race rejected under concurrent
-inserts, audit row immutable, RLS blocks a cross-user read).
+inserts, audit row immutable, RLS blocks a cross-user read; **added 20.08.2026, M3a-1 review, B2:
+a hierarchy `Vote` committed with zero `VoteRanking` rows is rejected at COMMIT (T4b), while a
+full-permutation ballot in the same shape of transaction commits**).
 
 ---
 
 ## 14. Defect disposition — structural vs not (honesty section)
 
 **Made structurally impossible by this schema** (constraint cited):
-DI-1 (U14 + §7 no-gate-counter), DI-2 (U14; withdrawal = delete-if-exists on the row itself),
-DI-3 (C2–C5, U7, U11, U15/U16, T4), DI-4 (U3), DI-5 (§7.3 derived score), DI-6 (M24 relations),
+DI-1's **double-vote half** (U14 — see below for the other half; split 20.08.2026, M3a-1 review,
+N4), DI-2 (U14; withdrawal = delete-if-exists on the row itself),
+DI-3 (C2–C5, U7, U11, U15/U16, T4 **+ T4b** — corrected 20.08.2026, M3a-1 review, B2: without the
+parent-side trigger the zero-ranking ballot committed and this row's claim was false), DI-4 (U3),
+DI-5 (§7.3 derived score), DI-6 (M24 relations),
 DI-7 (M14/T6 + computed tallies), COR-20 (M22 indexed NOT NULL `topicId`), COR-12 (C9 inclusive
 limit), plan-§2.4 row 6 email dupes (U1), N11/C3 unclosed-without-declaration (C1), CM-5/CM-6
 self-vote/self-flag (C6), FR-8/P-8 duplicate permissions (U4) and owner-with-role (T2), P-12
-duplicate tags (U5), CM-4 deep threading (T3), TL-3 method/option mutation after votes (T6),
+duplicate tags (U5), CM-4 deep threading (T3), TL-3 method/option mutation after votes (T6 —
+structural **including** the first-vote race, via the `FOR UPDATE`/`FOR KEY SHARE` interlock
+specified in T6; corrected 20.08.2026, M3a-1 review, N5),
 SEC-3's *missing field* (Token.expiresAt NOT NULL — the field cannot be omitted).
 
 **Supported but NOT schema-enforceable — the schema provides the shape, M4+ must enforce and test:**
+DI-1's **no-spurious-ALREADY_VOTED half** (moved here 20.08.2026, M3a-1 review, N4: U14 makes the
+*double vote* impossible, but a legal re-vote not failing with ALREADY_VOTED depends on the
+repository writing `INSERT … ON CONFLICT ("topicId", "voterPseudonym") WHERE status = 'active'
+DO UPDATE …` — an insert-then-catch implementation would resurrect the user-visible symptom even
+though the data stays correct; a query-shape contract exactly like the token lookup below),
 SEC-1/SEC-2 (scope is NOT NULL, but only the repository's `(tokenHash, scope, expiresAt)` query
 contract prevents scope-blind lookups — a schema cannot dictate WHERE clauses), SEC-3's *refusal*
 of expired tokens at use, SEC-5 (password minimum is checked before hashing — nothing rational to
@@ -580,9 +644,18 @@ journeys' activation WUs.
 | O9 | Q-7/C4: does `votingMethod IS NULL` survive as "no action", or does `content_type='debate'` subsume it? Schema supports both | WU-M3b-9 | **OPEN (Q-7)** |
 | O10 | Fixture-contract gaps G1–G3 (§12) — contract edits needed before the seed WU | `docs/develop/fixtures.md` / WU-M3a-10 | New, blocking for the seed |
 | O11 | `moderator` role (config-gated in legacy, `legacy/lib/models/forum/roles.js:15`) — omitted from E3; additive if revived | any moderation WU | Recorded |
+| O12 | **Differencing residual** (added 20.08.2026, M3a-1 review, N3): live public tally reads + per-second public `AuditEntry` timestamps allow choice inference at low participation; `ConsentRecord.grantedAt` ≈ first `Vote.createdAt` is a DB-insider correlation. Inherent to live consultative tallies (legacy had it too). Candidate mitigations in §8.3: timestamp coarsening, delayed aggregate refresh | DPIA (E3) / WU-M6-8 read surfaces | New, DPIA hand-off |
+| O13 | **Backup/WAL retention of salts and raw rows** (added 20.08.2026, M3a-1 review, N1): crypto-shredding is live-DB-only until backup and WAL-archive retention lapses (§8.3). OD-2's retention answer must cover backup/WAL windows explicitly | DPIA (E3) / **OD-2** | New, DPIA hand-off |
 
 ---
 
 *End of design record. Reviewed-before-migrations per plan §4.4; the adversarial reviewer should
 attack §9 (OD-1 mechanics), C1's Q-8 reading, C6's MATCH SIMPLE nuance, and every "structural"
 claim in §14 against the cited constraints.*
+
+*Post-review note, 20.08.2026: the M3a-1 adversarial review did exactly that and won twice — C6's
+MATCH SIMPLE argument (B1) and T4's structural claim for DI-3 (B2) both fell to executed
+counterexamples. All corrections in this revision are marked inline with their finding IDs
+(B1, B2, N1–N8, N10, N11, OD-1 sharpening; N9 lands in `docs/develop/fixtures.md`). Trigger count
+is now seven (T1–T6 plus T4b); tables (25 + 1 view), enums (17), uniques (U1–U25) and CHECKs
+(C1–C11) are unchanged.*
