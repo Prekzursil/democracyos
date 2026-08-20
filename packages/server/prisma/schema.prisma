@@ -409,6 +409,15 @@ model Topic {
 
   // U6: slug-addressed URLs without cross-forum collisions (plan §2.4).
   @@unique([forumId, slug])
+  // U7 mirror (added by the WU-M3a-4 review): the raw FK-support constraint
+  // topic_id_voting_method_fk_target (UNIQUE (id, "votingMethod"), created in
+  // the topics migration) must be VISIBLE to Prisma, or `migrate dev`
+  // generates a DROP for it — which hard-fails today (P3018: it is a table
+  // constraint, not a bare index) and whose error hint coaches the reader
+  // toward `DROP CONSTRAINT`, silently deleting migration 4's FK target.
+  // Mirroring with `map:` produces NO migration; the constraint of record
+  // stays the raw SQL in 20260820221500_topics.
+  @@unique([id, votingMethod], map: "topic_id_voting_method_fk_target")
   // §4.4: public listing = published-only per forum (TL-7); admin
   // draft-inclusive list (AD-3). Legacy had NO forum index at all.
   @@index([forumId, publishedAt])
@@ -464,6 +473,11 @@ model TopicOption {
   // U9/U10: option sets are well-ordered and duplicate-free (TL-4, VO-7/VO-12).
   @@unique([topicId, position])
   @@unique([topicId, label])
+  // U11 mirror (added by the WU-M3a-4 review): same drop-trap closure as the
+  // U7 mirror on Topic — the raw topic_option_own_topic_fk_target constraint
+  // (UNIQUE ("topicId", id)) must be visible to Prisma so `migrate dev` never
+  // generates a DROP for migration 4's Vote(topicId, pollOptionId) FK target.
+  @@unique([topicId, id], map: "topic_option_own_topic_fk_target")
 }
 
 // M17: legacy Topic.attrs (Mixed) → typed rows keyed by the forum's attr
