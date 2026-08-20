@@ -97,7 +97,8 @@ export const fixtureUsers = {
     password: fixturePassword('carmen-admin'),
     emailValidated: true,
   },
-  /** forum.owner — the only role that may transfer or delete the forum. */
+  /** forum.owner — the only role that may DELETE the forum. Ownership transfer does not
+   *  exist in legacy for any role (J3; corrected 20.08.2026 per WU-M1-14). */
   owner: {
     handle: 'dan-owner',
     role: 'owner',

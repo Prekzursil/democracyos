@@ -39,7 +39,7 @@ G-10, no legacy counterpart; legacy gated voting on forum privileges alone. Stag
 | `flavia-author` | author | stage2-phone | `flavia@example.test` | Legacy `author` role; owns content for the comment journey (J8). |
 | `bogdan-collaborator` | collaborator | stage2-phone | `bogdan@example.test` | Elevated but not admin — the boundary case that catches over-broad permission checks. |
 | `carmen-admin` | admin | stage2-phone | `carmen@example.test` | Forum admin (moderation surfaces, CSV export). |
-| `dan-owner` | owner | stage3-eid | `dan@example.test` | `forum.owner`; the only role that may transfer or delete the forum. Also exercises the top verification stage. |
+| `dan-owner` | owner | stage3-eid | `dan@example.test` | `forum.owner`; the only role that may **delete** the forum. Ownership **transfer does not exist** in legacy for any role — corrected 20.08.2026, WU-M1-14, per J3. Also exercises the top verification stage. |
 
 Every forum role is represented by exactly one canonical account, so the permissions
 journey (J3) can iterate roles without hand-picking users — see `fixtureUserByRole` in
@@ -69,7 +69,7 @@ Voting methods per `legacy/lib/models/topic.js:73`.
 ### `t-poll` option set
 
 Poll creation refuses a topic without options, exactly like hierarchy
-(`legacy/lib/db-api/topics/index.js:130-137`), so the seed cannot exist until they are
+(`legacy/lib/api-v2/db-api/topics/index.js:130-137`), so the seed cannot exist until they are
 named. Fixed at three distinct options:
 
 1. `Dimineața (08:00–12:00)`
@@ -83,7 +83,7 @@ topic's own option set.
 
 ### `t-hierarchy` option set
 
-Topic creation refuses a hierarchy topic without options (`legacy/lib/db-api/topics/index.js:130-137`),
+Topic creation refuses a hierarchy topic without options (`legacy/lib/api-v2/db-api/topics/index.js:130-137`),
 so the seed cannot exist until they are named. Fixed at three, in this order at creation
 (the UI randomizes presentation order per visitor to avoid anchoring):
 
@@ -110,8 +110,14 @@ previously defined no tag, so the topic fixtures could not have been seeded.
 | `urbanism` | Urbanism | The default tag carried by every seeded topic. |
 | `transport` | Transport | A second tag, so tag CRUD and tag filtering (J9) have something to distinguish. |
 
-`transport` is the safe target for J9's tag-delete assertion precisely because no fixture
-topic references it — deleting the tag every topic depends on would cascade unpredictably.
+`transport` exists so that tag listing and tag filtering have something to distinguish, and
+because no fixture topic references it, it is the only tag that *could* safely be deleted.
+
+> **Corrected 20.08.2026** (WU-M1-14 found this contradicted the spec): an earlier version
+> called `transport` "the safe target for J9's tag-delete assertion". J9 asserts the
+> opposite — legacy exposes **no tag-delete control to any role**, and whether the new app
+> gains one is an open product decision. The contract must not presume an assertion the
+> spec deliberately refuses to make.
 
 ## Comment tree
 
