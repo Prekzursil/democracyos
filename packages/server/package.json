@@ -10,7 +10,8 @@
   "type": "module",
   "scripts": {
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:coverage": "vitest run --coverage --coverage.reportsDirectory=./coverage"
   },
   "devDependencies": {
     "prisma": "^7.9.1"

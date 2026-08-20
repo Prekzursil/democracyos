@@ -1,2 +1,9 @@
 # Commits listed here are hidden from `git blame` (git config blame.ignoreRevsFile .git-blame-ignore-revs).
 # Reserved for format-only commits (plan N10). One hash per line.
+
+# WU-M0-3 status (M0 adversarial review finding N1): the format-only commit is
+# VACUOUS on this tree. Every file at the root was authored already Biome-formatted
+# (iome ci clean over 13 files) and legacy/** is excluded from formatting, so there
+# was no reformatting diff to isolate. No hash is listed because none exists — not
+# because the step was skipped. The first genuine mass-format commit, if one ever
+# occurs, is recorded here.
