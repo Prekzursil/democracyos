@@ -278,15 +278,39 @@ describe.skipIf(!databaseUrl)('WU-M3a-4 topics schema constraints', () => {
       expect(failure.constraint).toBe('topic_closed_requires_outcome');
     });
 
-    it('rejects a whitespace-only declaration (btrim guards the loophole)', async () => {
+    // Boundary matrix (WU-M3a-4 review F3): the original btrim() condition
+    // stripped only SPACES, so a TAB-only declaration satisfied C3/N11 —
+    // measured btrim(E'\t') = '' → false. The whitespace-proof replacement
+    // ("outcomeDeclaration" IS NOT NULL AND ~ '[^[:space:]]') must reject
+    // every whitespace-only shape and still accept real text, whitespace-
+    // padded or not. Values travel as $n parameters, never in the SQL.
+    it.each([
+      ['NULL', null],
+      ['the empty string', ''],
+      ['a single space', ' '],
+      ['three spaces (the pre-review probe)', '   '],
+      ['a single TAB (the review loophole)', '\t'],
+      ['a single newline', '\n'],
+      ['mixed whitespace (space/tab/CR/LF)', ' \t\r\n '],
+    ])('rejects a closed topic whose declaration is %s', async (_label, declaration) => {
       const failure = await expectSqlFailure(
         pool,
         `INSERT INTO "Topic" ("forumId", "tagId", slug, "mediaTitle", "contentType", lifecycle, "outcomeDeclaration")
-           VALUES ($1, $2, 't-closed-blank', 'T', 'debate', 'closed', '   ')`,
-        [forumId, tagId],
+           VALUES ($1, $2, 't-closed-blank', 'T', 'debate', 'closed', $3)`,
+        [forumId, tagId, declaration],
       );
-      expect(failure.code).toBe('23514');
+      expect(failure.code).toBe('23514'); // check_violation
       expect(failure.constraint).toBe('topic_closed_requires_outcome');
+    });
+
+    it('accepts a declaration with leading/trailing whitespace around real text', async () => {
+      const res = await pool.query<{ lifecycle: string }>(
+        `INSERT INTO "Topic" ("forumId", "tagId", slug, "mediaTitle", "contentType", lifecycle, "outcomeDeclaration")
+           VALUES ($1, $2, 't-closed-padded', 'T', 'debate', 'closed', $3)
+           RETURNING lifecycle::text`,
+        [forumId, tagId, ' \t Rezultatul va fi publicat ca aviz consultativ. \n '],
+      );
+      expect(res.rows[0]!.lifecycle).toBe('closed');
     });
 
     it('rejects outcome_published with no declaration (only `open` is exempt)', async () => {
@@ -354,6 +378,36 @@ describe.skipIf(!databaseUrl)('WU-M3a-4 topics schema constraints', () => {
       );
       expect(update.code).toBe('23514');
       expect(update.constraint).toBe('topic_closing_requires_outcome');
+    });
+
+    // The twin of the closed-clause boundary matrix (WU-M3a-4 review F3):
+    // the closing clause carried the same bare-btrim loophole.
+    it.each([
+      ['NULL', null],
+      ['the empty string', ''],
+      ['a single space', ' '],
+      ['a single TAB (the review loophole)', '\t'],
+      ['a single newline', '\n'],
+      ['mixed whitespace (space/tab/CR/LF)', ' \t\r\n '],
+    ])('rejects closingAt when the declaration is %s', async (_label, declaration) => {
+      const failure = await expectSqlFailure(
+        pool,
+        `INSERT INTO "Topic" ("forumId", "tagId", slug, "mediaTitle", "contentType", "closingAt", "outcomeDeclaration")
+           VALUES ($1, $2, 't-closing-blank', 'T', 'debate', now() + interval '7 days', $3)`,
+        [forumId, tagId, declaration],
+      );
+      expect(failure.code).toBe('23514'); // check_violation
+      expect(failure.constraint).toBe('topic_closing_requires_outcome');
+    });
+
+    it('accepts closingAt with a whitespace-padded real declaration', async () => {
+      const res = await pool.query<{ lifecycle: string }>(
+        `INSERT INTO "Topic" ("forumId", "tagId", slug, "mediaTitle", "contentType", "closingAt", "outcomeDeclaration")
+           VALUES ($1, $2, 't-closing-padded', 'T', 'debate', now() + interval '7 days', $3)
+           RETURNING lifecycle::text`,
+        [forumId, tagId, '\t Rezultatul va fi transmis primăriei. \r\n'],
+      );
+      expect(res.rows[0]!.lifecycle).toBe('open'); // TL-8: closing stays derived
     });
 
     it('accepts closingAt once the declaration exists (still lifecycle=open — TL-8 derived closing)', async () => {
