@@ -45,15 +45,30 @@ describe.skipIf(!databaseUrl)('WU-M3a-4 topics schema constraints', () => {
     return res.rows[0]!.id;
   }
 
+  // Two FIXED statements selected by the presence of votingMethod, every value
+  // a $n parameter — no SQL is ever built by interpolation (WU-M3a-4 review
+  // F2: the previous extraCols/extraVals template build tripped our own
+  // js-sql-built-by-template-string gate, correctly).
   async function createTopic(
     slug: string,
-    opts: { forumId?: string; tagId?: string; extraCols?: string; extraVals?: string } = {},
+    opts: {
+      forumId?: string;
+      tagId?: string;
+      votingMethod?: 'vote' | 'poll' | 'cause' | 'slider' | 'hierarchy';
+    } = {},
   ): Promise<string> {
-    const res = await pool.query<{ id: string }>(
-      `INSERT INTO "Topic" ("forumId", "tagId", slug, "mediaTitle", "contentType"${opts.extraCols ?? ''})
-         VALUES ($1, $2, $3, $4, 'debate'${opts.extraVals ?? ''}) RETURNING id`,
-      [opts.forumId ?? forumId, opts.tagId ?? tagId, slug, `Topic ${slug}`],
-    );
+    const base = [opts.forumId ?? forumId, opts.tagId ?? tagId, slug, `Topic ${slug}`];
+    const res = opts.votingMethod
+      ? await pool.query<{ id: string }>(
+          `INSERT INTO "Topic" ("forumId", "tagId", slug, "mediaTitle", "contentType", "votingMethod")
+             VALUES ($1, $2, $3, $4, 'debate', $5) RETURNING id`,
+          [...base, opts.votingMethod],
+        )
+      : await pool.query<{ id: string }>(
+          `INSERT INTO "Topic" ("forumId", "tagId", slug, "mediaTitle", "contentType")
+             VALUES ($1, $2, $3, $4, 'debate') RETURNING id`,
+          base,
+        );
     return res.rows[0]!.id;
   }
 
@@ -375,14 +390,8 @@ describe.skipIf(!databaseUrl)('WU-M3a-4 topics schema constraints', () => {
     let otherPollId: string;
 
     beforeAll(async () => {
-      pollId = await createTopic('t-poll', {
-        extraCols: ', "votingMethod"',
-        extraVals: `, 'poll'`,
-      });
-      otherPollId = await createTopic('t-poll-other', {
-        extraCols: ', "votingMethod"',
-        extraVals: `, 'poll'`,
-      });
+      pollId = await createTopic('t-poll', { votingMethod: 'poll' });
+      otherPollId = await createTopic('t-poll-other', { votingMethod: 'poll' });
     });
 
     it('rejects a duplicate position within one topic (U9)', async () => {
@@ -403,10 +412,7 @@ describe.skipIf(!databaseUrl)('WU-M3a-4 topics schema constraints', () => {
     });
 
     it('a zero-option poll topic is DB-legal on purpose: TL-4 mandatory-options is an API-layer rule (design §12)', async () => {
-      const bare = await createTopic('t-poll-bare', {
-        extraCols: ', "votingMethod"',
-        extraVals: `, 'poll'`,
-      });
+      const bare = await createTopic('t-poll-bare', { votingMethod: 'poll' });
       const res = await pool.query(
         'SELECT count(*)::int AS n FROM "TopicOption" WHERE "topicId" = $1',
         [bare],
@@ -417,10 +423,7 @@ describe.skipIf(!databaseUrl)('WU-M3a-4 topics schema constraints', () => {
 
   describe('U7/U11 — composite-unique FK targets pin migration 4 down (structural half of DI-3)', () => {
     it('U7: a scratch FK onto Topic(id, votingMethod) rejects a method that disagrees with the topic', async () => {
-      const pollId = await createTopic('t-pin-method', {
-        extraCols: ', "votingMethod"',
-        extraVals: `, 'poll'`,
-      });
+      const pollId = await createTopic('t-pin-method', { votingMethod: 'poll' });
       // CREATE TABLE itself proves the unique target exists — Postgres refuses
       // an FK onto columns without a unique constraint (SQLSTATE 42830).
       await pool.query('DROP TABLE IF EXISTS "_probe_vote_method"');
@@ -446,14 +449,8 @@ describe.skipIf(!databaseUrl)('WU-M3a-4 topics schema constraints', () => {
     });
 
     it('U11: a scratch FK onto TopicOption(topicId, id) rejects an option of ANOTHER topic', async () => {
-      const topicA = await createTopic('t-pin-option-a', {
-        extraCols: ', "votingMethod"',
-        extraVals: `, 'poll'`,
-      });
-      const topicB = await createTopic('t-pin-option-b', {
-        extraCols: ', "votingMethod"',
-        extraVals: `, 'poll'`,
-      });
+      const topicA = await createTopic('t-pin-option-a', { votingMethod: 'poll' });
+      const topicB = await createTopic('t-pin-option-b', { votingMethod: 'poll' });
       const optionB = await pool.query<{ id: string }>(
         `INSERT INTO "TopicOption" ("topicId", position, label)
            VALUES ($1, 1, 'Opțiunea B1') RETURNING id`,
