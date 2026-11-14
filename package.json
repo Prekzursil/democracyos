@@ -106,6 +106,7 @@
     "express": "4.15.3",
     "express-certbot-endpoint": "~1.0.0",
     "express-error-slack": "~0.3.1",
+    "express-rate-limit": "^3.4.1",
     "express-sslify": "1.2.0",
     "fb-signed-parser": "0.0.3",
     "form-parse": "0.1.0",
