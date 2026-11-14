@@ -20,7 +20,7 @@ var languages = fs.readdirSync(LANGS_FOLDER).map(function (v) {
 
 ;(function () {
   function sort (old) {
-    if (typeof old !== 'object' && old !== null) {
+    if (typeof old !== 'object') {
       return old
     }
     var copy = Array.isArray(old) ? [] : {}
