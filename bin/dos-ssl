@@ -4,7 +4,7 @@ var fs = require('fs')
 var mkdir = fs.mkdirSync
 var rm = fs.unlinkSync
 var exists = fs.existsSync
-var exec = require('child_process').exec
+var execFile = require('child_process').execFile
 var program = require('commander')
 var log = require('debug')('democracyos:certs')
 
@@ -18,12 +18,11 @@ program
 ensureDir(program.keyfile)
 ensureDir(program.certfile)
 
-var cmdGenRsa = 'openssl genrsa 1024 > ' + program.keyfile
-var cmdReq = 'openssl req -new -subj ' + program.subj + ' -key ' + program.keyfile + ' -out csr.pem'
-var cmdX509 = 'openssl x509 -req -days ' + program.days + ' -in csr.pem -signkey ' + program.keyfile + ' -out ' + program.certfile
-
-exec(cmdGenRsa, function (err, stdout, stderr) {
-  log('exec: %s', cmdGenRsa)
+// Arguments are passed as an argv array to execFile, so no shell is
+// involved and option values can never be interpreted as commands
+// (js/indirect-command-line-injection).
+execFile('openssl', ['genrsa', '-out', program.keyfile, '1024'], function (err, stdout, stderr) {
+  log('execFile: openssl genrsa -out %s 1024', program.keyfile)
   if (stdout.length) console.log(stdout)
   if (err != null) {
     console.log('Exception: ' + err)
@@ -31,8 +30,8 @@ exec(cmdGenRsa, function (err, stdout, stderr) {
     return
   }
 
-  exec(cmdReq, function (err, stdout, stderr) {
-    log('exec: %s', cmdReq)
+  execFile('openssl', ['req', '-new', '-subj', program.subj, '-key', program.keyfile, '-out', 'csr.pem'], function (err, stdout, stderr) {
+    log('execFile: openssl req -new -subj %s -key %s -out csr.pem', program.subj, program.keyfile)
     if (stdout.length) console.log(stdout)
     if (err != null) {
       console.log(err)
@@ -40,8 +39,8 @@ exec(cmdGenRsa, function (err, stdout, stderr) {
       return
     }
 
-    exec(cmdX509, function (err, stdout, stderr) {
-      log('exec: %s', cmdX509)
+    execFile('openssl', ['x509', '-req', '-days', program.days, '-in', 'csr.pem', '-signkey', program.keyfile, '-out', program.certfile], function (err, stdout, stderr) {
+      log('execFile: openssl x509 -req -days %s -in csr.pem -signkey %s -out %s', program.days, program.keyfile, program.certfile)
       rm('csr.pem')
       if (stdout.length) console.log(stdout)
       if (err != null) {
